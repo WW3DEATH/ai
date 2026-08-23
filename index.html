@@ -1,1825 +1,2276 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PhysLab AI — Real-Time Physics Simulations</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <script>
-    tailwind.config = {
-        theme: {
-            extend: {
-                fontFamily: { display: ['Space Grotesk','sans-serif'], mono: ['JetBrains Mono','monospace'] },
-                colors: {
-                    lab: { bg:'#06080d', card:'#0c1018', card2:'#111827', border:'#1a2332', text:'#e6edf3', muted:'#7d8590', green:'#00ff88', cyan:'#00b4d8', orange:'#ff6b35', red:'#ff4757' }
-                }
-            }
-        }
-    }
-    </script>
-    <style>
-        :root { --green:#00ff88; --cyan:#00b4d8; --orange:#ff6b35; --bg:#06080d; --card:#0c1018; --border:#1a2332; }
-        * { margin:0; padding:0; box-sizing:border-box; }
-        html { scroll-behavior:smooth; }
-        body { font-family:'Space Grotesk',sans-serif; background:var(--bg); color:#e6edf3; overflow-x:hidden; }
-        ::-webkit-scrollbar { width:6px; }
-        ::-webkit-scrollbar-track { background:#06080d; }
-        ::-webkit-scrollbar-thumb { background:#1a2332; border-radius:3px; }
-        ::-webkit-scrollbar-thumb:hover { background:#2a3a4e; }
-
-        .scroll-reveal { opacity:0; transform:translateY(50px); transition:opacity 0.7s ease, transform 0.7s ease; }
-        .scroll-reveal.visible { opacity:1; transform:translateY(0); }
-        .scroll-reveal-left { opacity:0; transform:translateX(-60px); transition:opacity 0.7s ease, transform 0.7s ease; }
-        .scroll-reveal-left.visible { opacity:1; transform:translateX(0); }
-        .scroll-reveal-right { opacity:0; transform:translateX(60px); transition:opacity 0.7s ease, transform 0.7s ease; }
-        .scroll-reveal-right.visible { opacity:1; transform:translateX(0); }
-
-        #hero-canvas { position:absolute; inset:0; z-index:0; }
-
-        .glow-green { box-shadow:0 0 20px rgba(0,255,136,0.15), 0 0 60px rgba(0,255,136,0.05); }
-        .glow-cyan { box-shadow:0 0 20px rgba(0,180,216,0.15), 0 0 60px rgba(0,180,216,0.05); }
-        .text-glow-green { text-shadow:0 0 30px rgba(0,255,136,0.4); }
-
-        .btn-primary {
-            background:linear-gradient(135deg,#00ff88,#00cc6a); color:#06080d; font-weight:600;
-            padding:12px 28px; border-radius:10px; border:none; cursor:pointer;
-            transition:all 0.3s; font-family:inherit; font-size:15px; position:relative; overflow:hidden;
-        }
-        .btn-primary:hover { transform:translateY(-2px); box-shadow:0 8px 30px rgba(0,255,136,0.3); }
-        .btn-primary:active { transform:translateY(0) scale(0.97); }
-        .btn-primary .ripple {
-            position:absolute; border-radius:50%; background:rgba(255,255,255,0.35);
-            transform:scale(0); animation:rippleAnim 0.6s ease-out forwards; pointer-events:none;
-        }
-        @keyframes rippleAnim { to { transform:scale(4); opacity:0; } }
-
-        .btn-secondary {
-            background:transparent; color:#00ff88; font-weight:500; padding:10px 24px;
-            border-radius:10px; border:1.5px solid rgba(0,255,136,0.3); cursor:pointer;
-            transition:all 0.3s; font-family:inherit; font-size:14px;
-        }
-        .btn-secondary:hover { border-color:#00ff88; background:rgba(0,255,136,0.05); }
-        .btn-sm { padding:8px 16px; font-size:13px; border-radius:8px; }
-        .btn-icon {
-            width:40px; height:40px; display:inline-flex; align-items:center; justify-content:center;
-            border-radius:10px; border:1.5px solid var(--border); background:var(--card);
-            color:#e6edf3; cursor:pointer; transition:all 0.2s; font-size:14px; position:relative; overflow:hidden;
-        }
-        .btn-icon:hover { border-color:var(--green); color:var(--green); background:rgba(0,255,136,0.05); }
-        .btn-icon:active { transform:scale(0.9); }
-
-        input[type=range] { -webkit-appearance:none; width:100%; height:6px; border-radius:3px; background:#1a2332; outline:none; cursor:pointer; }
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance:none; width:18px; height:18px; border-radius:50%;
-            background:var(--green); border:2px solid #06080d;
-            box-shadow:0 0 8px rgba(0,255,136,0.4); cursor:pointer; transition:transform 0.15s;
-        }
-        input[type=range]::-webkit-slider-thumb:hover { transform:scale(1.25); }
-        input[type=range]::-moz-range-thumb {
-            width:18px; height:18px; border-radius:50%;
-            background:var(--green); border:2px solid #06080d; cursor:pointer;
-        }
-
-        .sim-canvas-wrap { background:#080b12; border:1px solid var(--border); border-radius:14px; overflow:hidden; position:relative; }
-        .sim-canvas-wrap canvas { display:block; }
-
-        .ai-panel {
-            background:linear-gradient(135deg,rgba(0,255,136,0.03),rgba(0,180,216,0.03));
-            border:1px solid rgba(0,255,136,0.12); border-radius:12px; padding:16px;
-            font-family:'JetBrains Mono',monospace; font-size:12.5px; line-height:1.7;
-            color:#a0aec0; position:relative; overflow:hidden;
-        }
-        .ai-panel::before {
-            content:''; position:absolute; top:0; left:0; right:0; height:2px;
-            background:linear-gradient(90deg,transparent,var(--green),transparent);
-            animation:aiScan 3s ease-in-out infinite;
-        }
-        @keyframes aiScan { 0%,100%{opacity:0.3;transform:translateX(-100%)} 50%{opacity:1;transform:translateX(100%)} }
-        .ai-panel .ai-label { color:var(--green); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:1.5px; margin-bottom:8px; display:flex; align-items:center; gap:6px; }
-        .ai-panel .eq { color:var(--cyan); }
-        .ai-panel .val { color:var(--orange); font-weight:600; }
-        .ai-panel .insight { color:#c9d1d9; margin-top:6px; padding-left:12px; border-left:2px solid rgba(0,255,136,0.2); }
-
-        .data-row { display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid rgba(26,35,50,0.5); }
-        .data-row:last-child { border-bottom:none; }
-        .data-label { color:#7d8590; font-size:12px; font-family:'JetBrains Mono',monospace; }
-        .data-value { color:#e6edf3; font-size:13px; font-family:'JetBrains Mono',monospace; font-weight:500; transition:color 0.3s; }
-
-        .feature-card {
-            background:var(--card); border:1px solid var(--border); border-radius:16px;
-            padding:32px; transition:all 0.4s; position:relative; overflow:hidden;
-        }
-        .feature-card:hover { border-color:rgba(0,255,136,0.2); transform:translateY(-4px); }
-        .feature-card::after {
-            content:''; position:absolute; inset:0;
-            background:radial-gradient(circle at var(--mx,50%) var(--my,50%),rgba(0,255,136,0.06),transparent 60%);
-            opacity:0; transition:opacity 0.4s; pointer-events:none;
-        }
-        .feature-card:hover::after { opacity:1; }
-        .feature-icon { width:52px; height:52px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:22px; margin-bottom:20px; }
-
-        #toast-container { position:fixed; top:80px; right:20px; z-index:9999; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
-        .toast {
-            padding:12px 20px; border-radius:10px; font-size:13px; font-family:'Space Grotesk',sans-serif;
-            transform:translateX(120%); transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1); max-width:340px; border:1px solid;
-            pointer-events:auto;
-        }
-        .toast.show { transform:translateX(0); }
-        .toast-success { background:rgba(0,255,136,0.1); border-color:rgba(0,255,136,0.2); color:#00ff88; }
-        .toast-info { background:rgba(0,180,216,0.1); border-color:rgba(0,180,216,0.2); color:#00b4d8; }
-        .toast-warn { background:rgba(255,107,53,0.1); border-color:rgba(255,107,53,0.2); color:#ff6b35; }
-
-        nav { backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); }
-
-        .energy-bar { height:8px; border-radius:4px; background:#1a2332; overflow:hidden; }
-        .energy-fill { height:100%; border-radius:4px; transition:width 0.06s linear; }
-
-        .section-divider { height:1px; background:linear-gradient(90deg,transparent,var(--border),transparent); margin:0 auto; max-width:800px; }
-
-        .float-symbol {
-            position:absolute; font-family:'JetBrains Mono',monospace; color:rgba(0,255,136,0.06);
-            font-size:14px; pointer-events:none; animation:floatSym 8s ease-in-out infinite;
-        }
-        @keyframes floatSym { 0%,100%{transform:translateY(0) rotate(0deg);opacity:0.06} 50%{transform:translateY(-20px) rotate(5deg);opacity:0.12} }
-
-        .sim-status {
-            position:absolute; top:12px; right:12px; padding:4px 10px; border-radius:6px;
-            font-size:10px; font-family:'JetBrains Mono',monospace; font-weight:600;
-            text-transform:uppercase; letter-spacing:1px; z-index:2; transition:all 0.3s;
-        }
-        .sim-status.idle { background:rgba(125,133,144,0.15); color:#7d8590; }
-        .sim-status.running { background:rgba(0,255,136,0.15); color:#00ff88; animation:statusPulse 1.5s ease-in-out infinite; }
-        .sim-status.done { background:rgba(0,180,216,0.15); color:#00b4d8; }
-        @keyframes statusPulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
-
-        @media (prefers-reduced-motion:reduce) {
-            .scroll-reveal,.scroll-reveal-left,.scroll-reveal-right { opacity:1;transform:none;transition:none; }
-            .float-symbol,.ai-panel::before { animation:none; }
-            .sim-status.running { animation:none; }
-        }
-        @media (max-width:768px) {
-            .sim-layout { flex-direction:column !important; }
-            .sim-canvas-wrap { height:280px !important; }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PhysicsLab — Interactive Simulations</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script>
+tailwind.config={theme:{extend:{colors:{bg:'#0a0e17',surface:'#111827',card:'#1a2340',accent:'#f0a030',accentDk:'#c47d1a',teal:'#2dd4bf',muted:'#6b7280',fg:'#e8e6e3',border:'#1e293b'},fontFamily:{display:['Space Grotesk','sans-serif'],mono:['JetBrains Mono','monospace']}}}}
+</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Space Grotesk',sans-serif;background:#0a0e17;color:#e8e6e3;overflow:hidden;height:100vh}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:#111827}
+::-webkit-scrollbar-thumb{background:#374151;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#4b5563}
+.sidebar{width:260px;min-width:260px;height:100vh;background:#0d1220;border-right:1px solid #1e293b;display:flex;flex-direction:column;overflow-y:auto;z-index:50;transition:transform .3s}
+.sidebar .logo{padding:20px 18px;border-bottom:1px solid #1e293b;display:flex;align-items:center;gap:10px}
+.sidebar .logo i{color:#f0a030;font-size:22px}
+.sidebar .logo span{font-weight:700;font-size:18px;letter-spacing:-.5px}
+.nav-item{display:flex;align-items:center;gap:12px;padding:12px 18px;cursor:pointer;color:#9ca3af;font-size:13.5px;font-weight:500;border-left:3px solid transparent;transition:all .2s}
+.nav-item:hover{color:#e8e6e3;background:rgba(240,160,48,.05)}
+.nav-item.active{color:#f0a030;background:rgba(240,160,48,.08);border-left-color:#f0a030}
+.nav-item i{width:20px;text-align:center;font-size:14px}
+.sim-panel{display:none;height:100%;overflow-y:auto;padding:24px 28px}
+.sim-panel.active{display:block}
+canvas{border-radius:10px;background:#0d1220;border:1px solid #1e293b;display:block}
+.ctrl-label{font-size:12px;color:#9ca3af;font-weight:500;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.ctrl-select,.ctrl-input{background:#111827;border:1px solid #1e293b;color:#e8e6e3;padding:8px 12px;border-radius:8px;font-family:'Space Grotesk',sans-serif;font-size:13px;outline:none;width:100%;transition:border-color .2s}
+.ctrl-select:focus,.ctrl-input:focus{border-color:#f0a030}
+.ctrl-range{-webkit-appearance:none;width:100%;height:6px;background:#1e293b;border-radius:3px;outline:none}
+.ctrl-range::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;background:#f0a030;border-radius:50%;cursor:pointer;box-shadow:0 0 8px rgba(240,160,48,.4)}
+.btn{padding:9px 20px;border-radius:8px;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .2s;display:inline-flex;align-items:center;gap:8px}
+.btn-primary{background:#f0a030;color:#0a0e17}
+.btn-primary:hover{background:#d4891a;transform:translateY(-1px);box-shadow:0 4px 16px rgba(240,160,48,.3)}
+.btn-secondary{background:#1e293b;color:#e8e6e3}
+.btn-secondary:hover{background:#334155}
+.info-card{background:#111827;border:1px solid #1e293b;border-radius:10px;padding:14px 16px}
+.info-card .label{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.info-card .value{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:600;color:#f0a030}
+.vel-bar-wrap{display:flex;align-items:center;gap:10px;margin-top:4px}
+.vel-bar-label{font-family:'JetBrains Mono',monospace;font-size:13px;color:#9ca3af;white-space:nowrap}
+.vel-bar-track{flex:1;height:10px;background:#1e293b;border-radius:5px;overflow:hidden}
+.vel-bar-fill{height:100%;background:linear-gradient(90deg,#f0a030,#2dd4bf);border-radius:5px;transition:width .8s ease-out;width:0%}
+.hamburger{display:none;position:fixed;top:14px;left:14px;z-index:60;background:#1a2340;border:1px solid #1e293b;color:#e8e6e3;width:40px;height:40px;border-radius:8px;cursor:pointer;font-size:18px}
+@media(max-width:768px){.sidebar{position:fixed;left:0;top:0;transform:translateX(-100%)}.sidebar.open{transform:translateX(0)}.hamburger{display:flex;align-items:center;justify-content:center}.main-area{margin-left:0!important}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.sim-panel.active{animation:fadeIn .3s ease-out}
+.glow-dot{width:8px;height:8px;border-radius:50%;background:#2dd4bf;box-shadow:0 0 8px #2dd4bf;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+</style>
 </head>
-<body>
-    <div id="toast-container"></div>
+<body class="flex">
 
-    <nav class="fixed top-0 left-0 right-0 z-50 bg-lab-bg/70 border-b border-lab-border">
-        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-            <a href="#" class="flex items-center gap-2.5">
-                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-lab-green to-lab-cyan flex items-center justify-center">
-                    <i class="fas fa-atom text-lab-bg text-sm"></i>
-                </div>
-                <span class="font-display font-bold text-lg tracking-tight">PhysLab<span class="text-lab-green">AI</span></span>
-            </a>
-            <div class="hidden md:flex items-center gap-8">
-                <a href="#features" class="text-lab-muted hover:text-lab-text text-sm transition-colors">Features</a>
-                <a href="#projectile" class="text-lab-muted hover:text-lab-text text-sm transition-colors">Simulations</a>
-                <a href="#ai-section" class="text-lab-muted hover:text-lab-text text-sm transition-colors">AI Engine</a>
-            </div>
-            <button class="btn-primary btn-sm" onclick="scrollToLab()">Enter Lab</button>
-        </div>
-    </nav>
+<button class="hamburger" onclick="document.querySelector('.sidebar').classList.toggle('open')">
+<i class="fas fa-bars"></i>
+</button>
 
-    <header class="relative min-h-screen flex items-center justify-center overflow-hidden" id="hero">
-        <canvas id="hero-canvas"></canvas>
-        <span class="float-symbol" style="top:15%;left:10%;animation-delay:0s">F = ma</span>
-        <span class="float-symbol" style="top:25%;right:12%;animation-delay:1.5s;font-size:18px">E = mc²</span>
-        <span class="float-symbol" style="top:60%;left:8%;animation-delay:3s">Δp = FΔt</span>
-        <span class="float-symbol" style="top:70%;right:15%;animation-delay:4.5s;font-size:16px">∑F = 0</span>
-        <span class="float-symbol" style="top:40%;left:20%;animation-delay:2s;font-size:12px">v²=u²+2as</span>
-        <span class="float-symbol" style="top:80%;left:45%;animation-delay:5s">T=2π√(L/g)</span>
-        <span class="float-symbol" style="top:20%;left:55%;animation-delay:6s;font-size:13px">p=mv</span>
-        <span class="float-symbol" style="top:50%;right:8%;animation-delay:1s;font-size:15px">W=Fd</span>
+<aside class="sidebar">
+<div class="logo"><i class="fas fa-atom"></i><span>PhysicsLab</span></div>
+<div style="padding:8px 0">
+<div class="nav-item active" data-cat="reflection" onclick="switchCat('reflection')">
+<i class="fas fa-lightbulb"></i>Reflection & Refraction</div>
+<div class="nav-item" data-cat="inelastic" onclick="switchCat('inelastic')">
+<i class="fas fa-circle-nodes"></i>Inelastic Collision</div>
+<div class="nav-item" data-cat="cinelastic" onclick="switchCat('cinelastic')">
+<i class="fas fa-compress"></i>Completely Inelastic</div>
+<div class="nav-item" data-cat="relative" onclick="switchCat('relative')">
+<i class="fas fa-arrows-left-right"></i>Relative Motion</div>
+<div class="nav-item" data-cat="vernier" onclick="switchCat('vernier')">
+<i class="fas fa-ruler-combined"></i>Vernier Caliper</div>
+<div class="nav-item" data-cat="spherometer" onclick="switchCat('spherometer')">
+<i class="fas fa-circle-dot"></i>Spherometer</div>
+<div class="nav-item" data-cat="micrometer" onclick="switchCat('micrometer')">
+<i class="fas fa-gear"></i>Micrometer Screw Gauge</div>
+<div class="nav-item" data-cat="microscope" onclick="switchCat('microscope')">
+<i class="fas fa-microscope"></i>Travelling Microscope</div>
+</div>
+<div style="margin-top:auto;padding:16px 18px;border-top:1px solid #1e293b;font-size:11px;color:#4b5563">
+<div class="flex items-center gap-2 mb-1"><div class="glow-dot"></div><span>All simulations active</span></div>
+Interactive physics laboratory
+</div>
+</aside>
 
-        <div class="relative z-10 text-center px-6 max-w-4xl mx-auto">
-            <div class="inline-flex items-center gap-2 bg-lab-card border border-lab-border rounded-full px-4 py-1.5 mb-8 scroll-reveal" style="transition-delay:0.1s">
-                <span class="w-2 h-2 rounded-full bg-lab-green animate-pulse"></span>
-                <span class="text-lab-muted text-xs font-mono">AI-Powered Physics Engine v2.0</span>
-            </div>
-            <h1 class="font-display text-5xl sm:text-6xl lg:text-7xl font-bold leading-[1.1] mb-6 scroll-reveal" style="transition-delay:0.2s">
-                Physics,<br><span class="text-glow-green text-lab-green">Reimagined</span> by AI
-            </h1>
-            <p class="text-lab-muted text-lg sm:text-xl max-w-2xl mx-auto mb-10 leading-relaxed scroll-reveal" style="transition-delay:0.35s">
-                Real-time simulations with intelligent analysis. Adjust parameters, watch physics unfold, and let AI explain the science behind every motion.
-            </p>
-            <div class="flex flex-wrap items-center justify-center gap-4 scroll-reveal" style="transition-delay:0.5s">
-                <button class="btn-primary text-base" onclick="scrollToLab()">
-                    <i class="fas fa-flask mr-2"></i>Enter the Lab
-                </button>
-                <button class="btn-secondary" onclick="document.getElementById('features').scrollIntoView({behavior:'smooth'})">
-                    <i class="fas fa-info-circle mr-2"></i>How It Works
-                </button>
-            </div>
-        </div>
-        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 scroll-reveal" style="transition-delay:0.7s">
-            <span class="text-lab-muted text-xs font-mono">Scroll to explore</span>
-            <div class="w-5 h-8 border border-lab-border rounded-full flex justify-center pt-1.5">
-                <div class="w-1 h-2 bg-lab-green rounded-full animate-bounce"></div>
-            </div>
-        </div>
-    </header>
+<main class="main-area flex-1 h-screen overflow-hidden" style="margin-left:0">
 
-    <section class="py-16 border-y border-lab-border bg-lab-card/30">
-        <div class="max-w-5xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8">
-            <div class="text-center scroll-reveal" style="transition-delay:0.1s">
-                <div class="text-3xl font-bold text-lab-green font-mono counter" data-target="4">0</div>
-                <div class="text-lab-muted text-sm mt-1">Interactive Labs</div>
-            </div>
-            <div class="text-center scroll-reveal" style="transition-delay:0.2s">
-                <div class="text-3xl font-bold text-lab-cyan font-mono counter" data-target="50">0</div>
-                <div class="text-lab-muted text-sm mt-1">Physics Concepts</div>
-            </div>
-            <div class="text-center scroll-reveal" style="transition-delay:0.3s">
-                <div class="text-3xl font-bold text-lab-orange font-mono counter" data-target="1000">0</div>
-                <div class="text-lab-muted text-sm mt-1">Frames per Second</div>
-            </div>
-            <div class="text-center scroll-reveal" style="transition-delay:0.4s">
-                <div class="text-3xl font-bold text-lab-text font-mono">AI</div>
-                <div class="text-lab-muted text-sm mt-1">Powered Analysis</div>
-            </div>
-        </div>
-    </section>
+<!-- ====== REFLECTION & REFRACTION ====== -->
+<div id="panel-reflection" class="sim-panel active">
+<div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+<div>
+<h1 class="text-2xl font-bold tracking-tight">Reflection & Refraction</h1>
+<p class="text-sm text-muted mt-1">Switch mediums and adjust the angle of incidence</p>
+</div>
+<div class="flex items-center gap-2"><div class="glow-dot"></div><span class="text-xs text-muted">Live</span></div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+<div class="lg:col-span-2">
+<canvas id="cvReflection" width="700" height="460"></canvas>
+</div>
+<div class="space-y-4">
+<div class="info-card">
+<div class="ctrl-label">Medium 1 (Top)</div>
+<select id="refMed1" class="ctrl-select" onchange="drawReflection()">
+<option value="1.0003">Air (n=1.0003)</option>
+<option value="1.33">Water (n=1.33)</option>
+<option value="1.47">Oil (n=1.47)</option>
+<option value="1.52">Glass (n=1.52)</option>
+<option value="2.42">Diamond (n=2.42)</option>
+</select>
+</div>
+<div class="info-card">
+<div class="ctrl-label">Medium 2 (Bottom)</div>
+<select id="refMed2" class="ctrl-select" onchange="drawReflection()">
+<option value="1.33">Water (n=1.33)</option>
+<option value="1.0003">Air (n=1.0003)</option>
+<option value="1.47">Oil (n=1.47)</option>
+<option value="1.52">Glass (n=1.52)</option>
+<option value="2.42">Diamond (n=2.42)</option>
+</select>
+</div>
+<div class="info-card">
+<div class="ctrl-label">Angle of Incidence: <span id="refAngleVal">30</span>°</div>
+<input type="range" id="refAngle" class="ctrl-range" min="0" max="89" value="30" oninput="document.getElementById('refAngleVal').textContent=this.value;drawReflection()">
+</div>
+<div class="info-card">
+<div class="label">Angle of Reflection</div>
+<div class="value" id="refReflAngle">30°</div>
+</div>
+<div class="info-card">
+<div class="label">Angle of Refraction</div>
+<div class="value" id="refRefrAngle">22.1°</div>
+</div>
+<div class="info-card" id="refTIRCard" style="display:none">
+<div class="label">Total Internal Reflection</div>
+<div class="value" style="color:#ef4444">Active</div>
+</div>
+<div class="info-card">
+<div class="label">Critical Angle</div>
+<div class="value" id="refCritAngle">—</div>
+</div>
+<div class="info-card">
+<div class="label">Snell's Law</div>
+<div class="value text-sm" id="refSnell">n₁ sin θ₁ = n₂ sin θ₂</div>
+</div>
+</div>
+</div>
+</div>
 
-    <section id="features" class="py-24 px-6">
-        <div class="max-w-6xl mx-auto">
-            <div class="text-center mb-16">
-                <h2 class="font-display text-3xl sm:text-4xl font-bold mb-4 scroll-reveal">Built for Real Understanding</h2>
-                <p class="text-lab-muted text-lg max-w-xl mx-auto scroll-reveal" style="transition-delay:0.1s">Not just visualizations — real physics engines with AI that thinks alongside you.</p>
-            </div>
-            <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div class="feature-card scroll-reveal" style="transition-delay:0.1s" onmousemove="moveCardGlow(event,this)">
-                    <div class="feature-icon bg-lab-green/10 text-lab-green"><i class="fas fa-bolt"></i></div>
-                    <h3 class="font-display font-semibold text-lg mb-2">Real-Time Engine</h3>
-                    <p class="text-lab-muted text-sm leading-relaxed">Physics computed at 60fps with accurate numerical integration. No approximations, no shortcuts.</p>
-                </div>
-                <div class="feature-card scroll-reveal" style="transition-delay:0.2s" onmousemove="moveCardGlow(event,this)">
-                    <div class="feature-icon bg-lab-cyan/10 text-lab-cyan"><i class="fas fa-brain"></i></div>
-                    <h3 class="font-display font-semibold text-lg mb-2">AI Analysis</h3>
-                    <p class="text-lab-muted text-sm leading-relaxed">Intelligent insights that update as you experiment. Equations, predictions, and explanations in real time.</p>
-                </div>
-                <div class="feature-card scroll-reveal" style="transition-delay:0.3s" onmousemove="moveCardGlow(event,this)">
-                    <div class="feature-icon bg-lab-orange/10 text-lab-orange"><i class="fas fa-sliders-h"></i></div>
-                    <h3 class="font-display font-semibold text-lg mb-2">Full Control</h3>
-                    <p class="text-lab-muted text-sm leading-relaxed">Adjust every parameter with precision sliders. Mass, velocity, gravity, damping — you decide the experiment.</p>
-                </div>
-                <div class="feature-card scroll-reveal" style="transition-delay:0.4s" onmousemove="moveCardGlow(event,this)">
-                    <div class="feature-icon bg-lab-red/10 text-lab-red"><i class="fas fa-chart-line"></i></div>
-                    <h3 class="font-display font-semibold text-lg mb-2">Live Data</h3>
-                    <p class="text-lab-muted text-sm leading-relaxed">Real-time graphs, energy bars, and numerical readouts. See conservation laws in action as they happen.</p>
-                </div>
-            </div>
-        </div>
-    </section>
+<!-- ====== INELASTIC COLLISION ====== -->
+<div id="panel-inelastic" class="sim-panel">
+<div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+<div>
+<h1 class="text-2xl font-bold tracking-tight">Inelastic Collision</h1>
+<p class="text-sm text-muted mt-1">Coefficient of restitution e &lt; 1, kinetic energy is lost</p>
+</div>
+<div class="flex items-center gap-2"><div class="glow-dot"></div><span class="text-xs text-muted">Live</span></div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+<div class="lg:col-span-2"><canvas id="cvInelastic" width="700" height="400"></canvas></div>
+<div class="space-y-4">
+<div class="info-card">
+<div class="ctrl-label">Mass A (kg)</div>
+<input type="range" id="inMassA" class="ctrl-range" min="1" max="10" value="5" step="0.5" oninput="document.getElementById('inMassAVal').textContent=this.value;resetInelastic()">
+<div class="text-xs text-muted mt-1" id="inMassAVal">5</div>
+</div>
+<div class="info-card">
+<div class="ctrl-label">Mass B (kg)</div>
+<input type="range" id="inMassB" class="ctrl-range" min="1" max="10" value="3" step="0.5" oninput="document.getElementById('inMassBVal').textContent=this.value;resetInelastic()">
+<div class="text-xs text-muted mt-1" id="inMassBVal">3</div>
+</div>
+<div class="info-card">
+<div class="ctrl-label">Velocity A (m/s)</div>
+<input type="range" id="inVelA" class="ctrl-range" min="-10" max="10" value="6" step="0.5" oninput="document.getElementById('inVelAVal').textContent=this.value;resetInelastic()">
+<div class="text-xs text-muted mt-1" id="inVelAVal">6</div>
+</div>
+<div class="info-card">
+<div class="ctrl-label">Velocity B (m/s)</div>
+<input type="range" id="inVelB" class="ctrl-range" min="-10" max="10" value="-2" step="0.5" oninput="document.getElementById('inVelBVal').textContent=this.value;resetInelastic()">
+<div class="text-xs text-muted mt-1" id="inVelBVal">-2</div>
+</div>
+<div class="info-card">
+<div class="ctrl-label">Coefficient of Restitution (e)</div>
+<input type="range" id="inE" class="ctrl-range" min="0.01" max="0.99" value="0.5" step="0.01" oninput="document.getElementById('inEVal').textContent=this.value;resetInelastic()">
+<div class="text-xs text-muted mt-1" id="inEVal">0.5</div>
+</div>
+<div class="flex gap-3">
+<button class="btn btn-primary flex-1" onclick="startInelastic()"><i class="fas fa-play"></i>Start</button>
+<button class="btn btn-secondary flex-1" onclick="resetInelastic()"><i class="fas fa-redo"></i>Reset</button>
+</div>
+<div class="info-card">
+<div class="label">Velocity A after</div>
+<div class="vel-bar-wrap"><span class="vel-bar-label">0 →</span><div class="vel-bar-track"><div class="vel-bar-fill" id="inVelBarA"></div></div></div>
+</div>
+<div class="info-card">
+<div class="label">Velocity B after</div>
+<div class="vel-bar-wrap"><span class="vel-bar-label">0 →</span><div class="vel-bar-track"><div class="vel-bar-fill" id="inVelBarB"></div></div></div>
+</div>
+<div class="info-card">
+<div class="label">Energy Lost</div>
+<div class="value" id="inEnergyLost" style="color:#ef4444">0 J</div>
+</div>
+</div>
+</div>
+</div>
 
-    <div class="section-divider"></div>
+<!-- ====== COMPLETELY INELASTIC ====== -->
+<div id="panel-cinelastic" class="sim-panel">
+<div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+<div>
+<h1 class="text-2xl font-bold tracking-tight">Completely Inelastic Collision</h1>
+<p class="text-sm text-muted mt-1">Objects stick together after collision, maximum energy loss</p>
+</div>
+<div class="flex items-center gap-2"><div class="glow-dot"></div><span class="text-xs text-muted">Live</span></div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+<div class="lg:col-span-2"><canvas id="cvCInelastic" width="700" height="400"></canvas></div>
+<div class="space-y-4">
+<div class="info-card">
+<div class="ctrl-label">Mass A (kg)</div>
+<input type="range" id="ciMassA" class="ctrl-range" min="1" max="10" value="5" step="0.5" oninput="document.getElementById('ciMassAVal').textContent=this.value;resetCInelastic()">
+<div class="text-xs text-muted mt-1" id="ciMassAVal">5</div>
+</div>
+<div class="info-card">
+<div class="ctrl-label">Mass B (kg)</div>
+<input type="range" id="ciMassB" class="ctrl-range" min="1" max="10" value="3" step="0.5" oninput="document.getElementById('ciMassBVal').textContent=this.value;resetCInelastic()">
+<div class="text-xs text-muted mt-1" id="ciMassBVal">3</div>
+</div>
+<div class="info-card">
+<div class="ctrl-label">Velocity A (m/s)</div>
+<input type="range" id="ciVelA" class="ctrl-range" min="-10" max="10" value="6" step="0.5" oninput="document.getElementById('ciVelAVal').textContent=this.value;resetCInelastic()">
+<div class="text-xs text-muted mt-1" id="ciVelAVal">6</div>
+</div>
+<div class="info-card">
+<div class="ctrl-label">Velocity B (m/s)</div>
+<input type="range" id="ciVelB" class="ctrl-range" min="-10" max="10" value="-2" step="0.5" oninput="document.getElementById('ciVelBVal').textContent=this.value;resetCInelastic()">
+<div class="text-xs text-muted mt-1" id="ciVelBVal">-2</div>
+</div>
+<div class="flex gap-3">
+<button class="btn btn-primary flex-1" onclick="startCInelastic()"><i class="fas fa-play"></i>Start</button>
+<button class="btn btn-secondary flex-1" onclick="resetCInelastic()"><i class="fas fa-redo"></i>Reset</button>
+</div>
+<div class="info-card">
+<div class="label">Combined Velocity</div>
+<div class="vel-bar-wrap"><span class="vel-bar-label">0 →</span><div class="vel-bar-track"><div class="vel-bar-fill" id="ciVelBar"></div></div></div>
+</div>
+<div class="info-card">
+<div class="label">Energy Lost</div>
+<div class="value" id="ciEnergyLost" style="color:#ef4444">0 J</div>
+</div>
+<div class="info-card">
+<div class="label">Momentum Conserved</div>
+<div class="value" id="ciMomentum" style="color:#2dd4bf">Yes</div>
+</div>
+</div>
+</div>
+</div>
 
-    <!-- PROJECTILE MOTION -->
-    <section id="projectile" class="py-24 px-6">
-        <div class="max-w-7xl mx-auto">
-            <div class="flex items-center gap-3 mb-10 scroll-reveal">
-                <div class="w-10 h-10 rounded-xl bg-lab-green/10 flex items-center justify-center text-lab-green"><i class="fas fa-basketball-ball"></i></div>
-                <div>
-                    <h2 class="font-display text-2xl sm:text-3xl font-bold">Projectile Motion</h2>
-                    <p class="text-lab-muted text-sm">Study trajectory, range, and maximum height under gravity.</p>
-                </div>
-            </div>
-            <div class="sim-layout flex flex-col lg:flex-row gap-6">
-                <div class="flex-1 scroll-reveal-left">
-                    <div class="sim-canvas-wrap" style="height:420px">
-                        <div class="sim-status idle" id="proj-status">Ready</div>
-                        <canvas id="proj-canvas"></canvas>
-                    </div>
-                </div>
-                <div class="w-full lg:w-80 flex flex-col gap-4 scroll-reveal-right">
-                    <div class="bg-lab-card border border-lab-border rounded-xl p-5">
-                        <div class="text-xs font-mono text-lab-green uppercase tracking-wider mb-4">Parameters</div>
-                        <div class="space-y-4">
-                            <div>
-                                <div class="flex justify-between text-xs mb-1.5"><span class="text-lab-muted">Launch Angle</span><span class="font-mono text-lab-text" id="proj-angle-val">45°</span></div>
-                                <input type="range" id="proj-angle" min="5" max="85" value="45" oninput="projSetParam()">
-                            </div>
-                            <div>
-                                <div class="flex justify-between text-xs mb-1.5"><span class="text-lab-muted">Initial Velocity</span><span class="font-mono text-lab-text" id="proj-vel-val">25 m/s</span></div>
-                                <input type="range" id="proj-vel" min="5" max="50" value="25" oninput="projSetParam()">
-                            </div>
-                            <div>
-                                <div class="flex justify-between text-xs mb-1.5"><span class="text-lab-muted">Gravity</span><span class="font-mono text-lab-text" id="proj-grav-val">9.81 m/s²</span></div>
-                                <input type="range" id="proj-grav" min="1" max="25" value="9.81" step="0.01" oninput="projSetParam()">
-                            </div>
-                        </div>
-                        <div class="flex gap-2 mt-5">
-                            <button class="btn-primary btn-sm flex-1" id="proj-launch" onclick="projLaunch()"><i class="fas fa-play mr-1"></i>Launch</button>
-                            <button class="btn-icon" onclick="projReset()" title="Reset"><i class="fas fa-redo"></i></button>
-                            <button class="btn-icon" onclick="projAIOptimize()" title="AI Optimize"><i class="fas fa-magic"></i></button>
-                        </div>
-                    </div>
-                    <div class="bg-lab-card border border-lab-border rounded-xl p-5">
-                        <div class="text-xs font-mono text-lab-cyan uppercase tracking-wider mb-3">Live Data</div>
-                        <div class="data-row"><span class="data-label">Range</span><span class="data-value" id="proj-range">—</span></div>
-                        <div class="data-row"><span class="data-label">Max Height</span><span class="data-value" id="proj-maxh">—</span></div>
-                        <div class="data-row"><span class="data-label">Time of Flight</span><span class="data-value" id="proj-tof">—</span></div>
-                        <div class="data-row"><span class="data-label">Current Speed</span><span class="data-value" id="proj-speed">—</span></div>
-                    </div>
-                    <div class="ai-panel" id="proj-ai">
-                        <div class="ai-label"><i class="fas fa-robot"></i> AI Analysis</div>
-                        <div id="proj-ai-text">Adjust parameters and launch to see AI analysis...</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
+<!-- ====== RELATIVE MOTION ====== -->
+<div id="panel-relative" class="sim-panel">
+<div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+<div>
+<h1 class="text-2xl font-bold tracking-tight">Relative Motion</h1>
+<p class="text-sm text-muted mt-1">Observe motion from different reference frames</p>
+</div>
+<div class="flex items-center gap-2"><div class="glow-dot"></div><span class="text-xs text-muted">Live</span></div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+<div class="lg:col-span-2"><canvas id="cvRelative" width="700" height="400"></canvas></div>
+<div class="space-y-4">
+<div class="info-card">
+<div class="ctrl-label">Velocity of A (m/s)</div>
+<input type="range" id="relVelA" class="ctrl-range" min="-10" max="10" value="5" step="0.5" oninput="document.getElementById('relVelAVal').textContent=this.value;drawRelative()">
+<div class="text-xs text-muted mt-1" id="relVelAVal">5</div>
+</div>
+<div class="info-card">
+<div class="ctrl-label">Velocity of B (m/s)</div>
+<input type="range" id="relVelB" class="ctrl-range" min="-10" max="10" value="3" step="0.5" oninput="document.getElementById('relVelBVal').textContent=this.value;drawRelative()">
+<div class="text-xs text-muted mt-1" id="relVelBVal">3</div>
+</div>
+<div class="info-card">
+<div class="ctrl-label">Reference Frame</div>
+<select id="relFrame" class="ctrl-select" onchange="drawRelative()">
+<option value="ground">Ground</option>
+<option value="A">Object A</option>
+<option value="B">Object B</option>
+</select>
+</div>
+<div class="flex gap-3">
+<button class="btn btn-primary flex-1" onclick="startRelative()"><i class="fas fa-play"></i>Start</button>
+<button class="btn btn-secondary flex-1" onclick="resetRelative()"><i class="fas fa-redo"></i>Reset</button>
+</div>
+<div class="info-card">
+<div class="label">Relative Velocity of A w.r.t. B</div>
+<div class="vel-bar-wrap"><span class="vel-bar-label">0 →</span><div class="vel-bar-track"><div class="vel-bar-fill" id="relVelBarAB"></div></div></div>
+</div>
+<div class="info-card">
+<div class="label">Relative Velocity of B w.r.t. A</div>
+<div class="vel-bar-wrap"><span class="vel-bar-label">0 →</span><div class="vel-bar-track"><div class="vel-bar-fill" id="relVelBarBA"></div></div></div>
+</div>
+</div>
+</div>
+</div>
 
-    <div class="section-divider"></div>
+<!-- ====== VERNIER CALIPER ====== -->
+<div id="panel-vernier" class="sim-panel">
+<div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+<div>
+<h1 class="text-2xl font-bold tracking-tight">Vernier Caliper</h1>
+<p class="text-sm text-muted mt-1">Drag the slider to measure. Least count: 0.02 mm</p>
+</div>
+<div class="flex items-center gap-2"><div class="glow-dot"></div><span class="text-xs text-muted">Live</span></div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+<div class="lg:col-span-2"><canvas id="cvVernier" width="700" height="320"></canvas>
+<p class="text-xs text-muted mt-2"><i class="fas fa-hand-pointer mr-1"></i>Click and drag the movable jaw to adjust</p></div>
+<div class="space-y-4">
+<div class="info-card">
+<div class="label">Main Scale Reading (MSR)</div>
+<div class="value" id="verMSR">0.00 cm</div>
+</div>
+<div class="info-card">
+<div class="label">Vernier Scale Reading (VSR)</div>
+<div class="value" id="verVSR">0</div>
+</div>
+<div class="info-card">
+<div class="label">Least Count</div>
+<div class="value">0.02 mm</div>
+</div>
+<div class="info-card" style="border-color:#f0a030">
+<div class="label">Total Reading</div>
+<div class="value text-xl" id="verTotal">0.00 mm</div>
+</div>
+<div class="info-card">
+<div class="label">Formula</div>
+<div class="value text-xs" style="color:#9ca3af">TR = MSR + (VSR × LC)</div>
+</div>
+<button class="btn btn-secondary w-full" onclick="resetVernier()"><i class="fas fa-redo"></i>Reset to Zero</button>
+</div>
+</div>
+</div>
 
-    <!-- PENDULUM -->
-    <section id="pendulum" class="py-24 px-6">
-        <div class="max-w-7xl mx-auto">
-            <div class="flex items-center gap-3 mb-10 scroll-reveal">
-                <div class="w-10 h-10 rounded-xl bg-lab-cyan/10 flex items-center justify-center text-lab-cyan"><i class="fas fa-clock"></i></div>
-                <div>
-                    <h2 class="font-display text-2xl sm:text-3xl font-bold">Simple Pendulum</h2>
-                    <p class="text-lab-muted text-sm">Explore oscillations, period, and energy conservation.</p>
-                </div>
-            </div>
-            <div class="sim-layout flex flex-col lg:flex-row-reverse gap-6">
-                <div class="flex-1 scroll-reveal-right">
-                    <div class="sim-canvas-wrap" style="height:420px">
-                        <div class="sim-status idle" id="pend-status">Ready</div>
-                        <canvas id="pend-canvas"></canvas>
-                    </div>
-                </div>
-                <div class="w-full lg:w-80 flex flex-col gap-4 scroll-reveal-left">
-                    <div class="bg-lab-card border border-lab-border rounded-xl p-5">
-                        <div class="text-xs font-mono text-lab-green uppercase tracking-wider mb-4">Parameters</div>
-                        <div class="space-y-4">
-                            <div>
-                                <div class="flex justify-between text-xs mb-1.5"><span class="text-lab-muted">Length</span><span class="font-mono text-lab-text" id="pend-len-val">1.5 m</span></div>
-                                <input type="range" id="pend-len" min="0.3" max="3" value="1.5" step="0.1" oninput="pendSetParam()">
-                            </div>
-                            <div>
-                                <div class="flex justify-between text-xs mb-1.5"><span class="text-lab-muted">Initial Angle</span><span class="font-mono text-lab-text" id="pend-ang-val">30°</span></div>
-                                <input type="range" id="pend-ang" min="5" max="80" value="30" oninput="pendSetParam()">
-                            </div>
-                            <div>
-                                <div class="flex justify-between text-xs mb-1.5"><span class="text-lab-muted">Gravity</span><span class="font-mono text-lab-text" id="pend-grav-val">9.81 m/s²</span></div>
-                                <input type="range" id="pend-grav" min="1" max="25" value="9.81" step="0.01" oninput="pendSetParam()">
-                            </div>
-                            <div>
-                                <div class="flex justify-between text-xs mb-1.5"><span class="text-lab-muted">Damping</span><span class="font-mono text-lab-text" id="pend-damp-val">0.00</span></div>
-                                <input type="range" id="pend-damp" min="0" max="0.5" value="0" step="0.01" oninput="pendSetParam()">
-                            </div>
-                        </div>
-                        <div class="flex gap-2 mt-5">
-                            <button class="btn-primary btn-sm flex-1" id="pend-toggle" onclick="pendToggle()"><i class="fas fa-play mr-1"></i>Start</button>
-                            <button class="btn-icon" onclick="pendReset()" title="Reset"><i class="fas fa-redo"></i></button>
-                            <button class="btn-icon" onclick="pendAIOptimize()" title="AI Optimize"><i class="fas fa-magic"></i></button>
-                        </div>
-                    </div>
-                    <div class="bg-lab-card border border-lab-border rounded-xl p-5">
-                        <div class="text-xs font-mono text-lab-orange uppercase tracking-wider mb-3">Energy</div>
-                        <div class="mb-2">
-                            <div class="flex justify-between text-xs mb-1"><span class="text-lab-green">Kinetic</span><span class="font-mono text-lab-text" id="pend-ke">0.00 J</span></div>
-                            <div class="energy-bar"><div class="energy-fill bg-lab-green" id="pend-ke-bar" style="width:0%"></div></div>
-                        </div>
-                        <div>
-                            <div class="flex justify-between text-xs mb-1"><span class="text-lab-orange">Potential</span><span class="font-mono text-lab-text" id="pend-pe">0.00 J</span></div>
-                            <div class="energy-bar"><div class="energy-fill bg-lab-orange" id="pend-pe-bar" style="width:0%"></div></div>
-                        </div>
-                        <div class="data-row mt-2"><span class="data-label">Total</span><span class="data-value" id="pend-te">0.00 J</span></div>
-                    </div>
-                    <div class="bg-lab-card border border-lab-border rounded-xl p-5">
-                        <div class="text-xs font-mono text-lab-cyan uppercase tracking-wider mb-3">Live Data</div>
-                        <div class="data-row"><span class="data-label">Angle</span><span class="data-value" id="pend-cur-ang">—</span></div>
-                        <div class="data-row"><span class="data-label">Angular Vel</span><span class="data-value" id="pend-cur-vel">—</span></div>
-                        <div class="data-row"><span class="data-label">Period (calc)</span><span class="data-value" id="pend-period">—</span></div>
-                    </div>
-                    <div class="ai-panel" id="pend-ai">
-                        <div class="ai-label"><i class="fas fa-robot"></i> AI Analysis</div>
-                        <div id="pend-ai-text">Start the pendulum to see AI analysis...</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
+<!-- ====== SPHEROMETER ====== -->
+<div id="panel-spherometer" class="sim-panel">
+<div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+<div>
+<h1 class="text-2xl font-bold tracking-tight">Spherometer</h1>
+<p class="text-sm text-muted mt-1">Rotate the screw to measure radius of curvature</p>
+</div>
+<div class="flex items-center gap-2"><div class="glow-dot"></div><span class="text-xs text-muted">Live</span></div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+<div class="lg:col-span-2"><canvas id="cvSpherometer" width="700" height="480"></canvas>
+<p class="text-xs text-muted mt-2"><i class="fas fa-hand-pointer mr-1"></i>Click left/right side of canvas to rotate screw</p></div>
+<div class="space-y-4">
+<div class="info-card">
+<div class="ctrl-label">Leg Separation (l)</div>
+<input type="range" id="sphLeg" class="ctrl-range" min="2" max="6" value="3.5" step="0.1" oninput="document.getElementById('sphLegVal').textContent=this.value+' cm';drawSpherometer()">
+<div class="text-xs text-muted mt-1" id="sphLegVal">3.5 cm</div>
+</div>
+<div class="info-card">
+<div class="ctrl-label">Pitch</div>
+<select id="sphPitch" class="ctrl-select" onchange="drawSpherometer()">
+<option value="0.5">0.5 mm</option>
+<option value="1">1.0 mm</option>
+</select>
+</div>
+<div class="info-card">
+<div class="label">Main Scale Reading</div>
+<div class="value" id="sphMSR">0.0 mm</div>
+</div>
+<div class="info-card">
+<div class="label">Circular Scale Reading</div>
+<div class="value" id="sphCSR">0</div>
+</div>
+<div class="info-card">
+<div class="label">Sagitta (h)</div>
+<div class="value" id="sphH">0.00 mm</div>
+</div>
+<div class="info-card" style="border-color:#f0a030">
+<div class="label">Radius of Curvature (R)</div>
+<div class="value text-xl" id="sphR">— cm</div>
+</div>
+<button class="btn btn-secondary w-full" onclick="resetSpherometer()"><i class="fas fa-redo"></i>Reset</button>
+</div>
+</div>
+</div>
 
-    <div class="section-divider"></div>
+<!-- ====== MICROMETER SCREW GAUGE ====== -->
+<div id="panel-micrometer" class="sim-panel">
+<div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+<div>
+<h1 class="text-2xl font-bold tracking-tight">Micrometer Screw Gauge</h1>
+<p class="text-sm text-muted mt-1">Rotate the thimble. Least count: 0.01 mm</p>
+</div>
+<div class="flex items-center gap-2"><div class="glow-dot"></div><span class="text-xs text-muted">Live</span></div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+<div class="lg:col-span-2"><canvas id="cvMicrometer" width="700" height="340"></canvas>
+<p class="text-xs text-muted mt-2"><i class="fas fa-hand-pointer mr-1"></i>Click left/right side of canvas to rotate thimble</p></div>
+<div class="space-y-4">
+<div class="info-card">
+<div class="label">Sleeve Reading (MSR)</div>
+<div class="value" id="micMSR">0.00 mm</div>
+</div>
+<div class="info-card">
+<div class="label">Thimble Reading (TR)</div>
+<div class="value" id="micTR">0</div>
+</div>
+<div class="info-card">
+<div class="label">Least Count</div>
+<div class="value">0.01 mm</div>
+</div>
+<div class="info-card" style="border-color:#f0a030">
+<div class="label">Total Reading</div>
+<div class="value text-xl" id="micTotal">0.00 mm</div>
+</div>
+<div class="info-card">
+<div class="label">Zero Error</div>
+<div class="value text-sm" id="micZeroErr" style="color:#2dd4bf">0.00 mm</div>
+</div>
+<button class="btn btn-secondary w-full" onclick="resetMicrometer()"><i class="fas fa-redo"></i>Reset</button>
+</div>
+</div>
+</div>
 
-    <!-- SPRING MASS -->
-    <section id="spring" class="py-24 px-6">
-        <div class="max-w-7xl mx-auto">
-            <div class="flex items-center gap-3 mb-10 scroll-reveal">
-                <div class="w-10 h-10 rounded-xl bg-lab-orange/10 flex items-center justify-center text-lab-orange"><i class="fas fa-compress-arrows-alt"></i></div>
-                <div>
-                    <h2 class="font-display text-2xl sm:text-3xl font-bold">Spring-Mass Oscillator</h2>
-                    <p class="text-lab-muted text-sm">Hooke's law, simple harmonic motion, and damping effects.</p>
-                </div>
-            </div>
-            <div class="sim-layout flex flex-col lg:flex-row gap-6">
-                <div class="flex-1 scroll-reveal-left flex flex-col gap-4">
-                    <div class="sim-canvas-wrap" style="height:260px">
-                        <div class="sim-status idle" id="spring-status">Ready</div>
-                        <canvas id="spring-canvas"></canvas>
-                    </div>
-                    <div class="sim-canvas-wrap" style="height:140px">
-                        <canvas id="spring-graph"></canvas>
-                    </div>
-                </div>
-                <div class="w-full lg:w-80 flex flex-col gap-4 scroll-reveal-right">
-                    <div class="bg-lab-card border border-lab-border rounded-xl p-5">
-                        <div class="text-xs font-mono text-lab-green uppercase tracking-wider mb-4">Parameters</div>
-                        <div class="space-y-4">
-                            <div>
-                                <div class="flex justify-between text-xs mb-1.5"><span class="text-lab-muted">Spring Constant (k)</span><span class="font-mono text-lab-text" id="spring-k-val">20 N/m</span></div>
-                                <input type="range" id="spring-k" min="2" max="100" value="20" oninput="springSetParam()">
-                            </div>
-                            <div>
-                                <div class="flex justify-between text-xs mb-1.5"><span class="text-lab-muted">Mass (m)</span><span class="font-mono text-lab-text" id="spring-m-val">1.0 kg</span></div>
-                                <input type="range" id="spring-m" min="0.1" max="5" value="1" step="0.1" oninput="springSetParam()">
-                            </div>
-                            <div>
-                                <div class="flex justify-between text-xs mb-1.5"><span class="text-lab-muted">Amplitude</span><span class="font-mono text-lab-text" id="spring-a-val">0.8 m</span></div>
-                                <input type="range" id="spring-a" min="0.1" max="1.5" value="0.8" step="0.05" oninput="springSetParam()">
-                            </div>
-                            <div>
-                                <div class="flex justify-between text-xs mb-1.5"><span class="text-lab-muted">Damping (b)</span><span class="font-mono text-lab-text" id="spring-b-val">0.00</span></div>
-                                <input type="range" id="spring-b" min="0" max="3" value="0" step="0.05" oninput="springSetParam()">
-                            </div>
-                        </div>
-                        <div class="flex gap-2 mt-5">
-                            <button class="btn-primary btn-sm flex-1" id="spring-toggle" onclick="springToggle()"><i class="fas fa-play mr-1"></i>Start</button>
-                            <button class="btn-icon" onclick="springReset()" title="Reset"><i class="fas fa-redo"></i></button>
-                            <button class="btn-icon" onclick="springAIOptimize()" title="AI Optimize"><i class="fas fa-magic"></i></button>
-                        </div>
-                    </div>
-                    <div class="bg-lab-card border border-lab-border rounded-xl p-5">
-                        <div class="text-xs font-mono text-lab-cyan uppercase tracking-wider mb-3">Live Data</div>
-                        <div class="data-row"><span class="data-label">Displacement</span><span class="data-value" id="spring-disp">—</span></div>
-                        <div class="data-row"><span class="data-label">Velocity</span><span class="data-value" id="spring-vel">—</span></div>
-                        <div class="data-row"><span class="data-label">Acceleration</span><span class="data-value" id="spring-acc">—</span></div>
-                        <div class="data-row"><span class="data-label">Period</span><span class="data-value" id="spring-period">—</span></div>
-                        <div class="data-row"><span class="data-label">Frequency</span><span class="data-value" id="spring-freq">—</span></div>
-                    </div>
-                    <div class="ai-panel" id="spring-ai">
-                        <div class="ai-label"><i class="fas fa-robot"></i> AI Analysis</div>
-                        <div id="spring-ai-text">Start the oscillator to see AI analysis...</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
+<!-- ====== TRAVELLING MICROSCOPE ====== -->
+<div id="panel-microscope" class="sim-panel">
+<div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+<div>
+<h1 class="text-2xl font-bold tracking-tight">Travelling Microscope</h1>
+<p class="text-sm text-muted mt-1">Move the crosshair to take readings. Least count: 0.01 mm</p>
+</div>
+<div class="flex items-center gap-2"><div class="glow-dot"></div><span class="text-xs text-muted">Live</span></div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+<div class="lg:col-span-2"><canvas id="cvMicroscope" width="700" height="400"></canvas>
+<p class="text-xs text-muted mt-2"><i class="fas fa-hand-pointer mr-1"></i>Click and drag to move the microscope horizontally</p></div>
+<div class="space-y-4">
+<div class="info-card">
+<div class="label">Main Scale Reading</div>
+<div class="value" id="tmMSR">0.0 mm</div>
+</div>
+<div class="info-card">
+<div class="label">Vernier Scale Reading</div>
+<div class="value" id="tmVSR">0</div>
+</div>
+<div class="info-card">
+<div class="label">Least Count</div>
+<div class="value">0.01 mm</div>
+</div>
+<div class="info-card" style="border-color:#f0a030">
+<div class="label">Position Reading</div>
+<div class="value text-xl" id="tmTotal">0.00 mm</div>
+</div>
+<div class="info-card">
+<div class="ctrl-label">Magnification</div>
+<input type="range" id="tmMag" class="ctrl-range" min="1" max="10" value="3" step="0.5" oninput="document.getElementById('tmMagVal').textContent=this.value+'x';drawMicroscope()">
+<div class="text-xs text-muted mt-1" id="tmMagVal">3x</div>
+</div>
+<button class="btn btn-secondary w-full" onclick="resetMicroscope()"><i class="fas fa-redo"></i>Reset</button>
+</div>
+</div>
+</div>
 
-    <div class="section-divider"></div>
+</main>
 
-    <!-- COLLISION -->
-    <section id="collision" class="py-24 px-6">
-        <div class="max-w-7xl mx-auto">
-            <div class="flex items-center gap-3 mb-10 scroll-reveal">
-                <div class="w-10 h-10 rounded-xl bg-lab-red/10 flex items-center justify-center text-lab-red"><i class="fas fa-exchange-alt"></i></div>
-                <div>
-                    <h2 class="font-display text-2xl sm:text-3xl font-bold">1D Collision</h2>
-                    <p class="text-lab-muted text-sm">Momentum conservation, elastic and inelastic collisions.</p>
-                </div>
-            </div>
-            <div class="sim-layout flex flex-col lg:flex-row-reverse gap-6">
-                <div class="flex-1 scroll-reveal-right">
-                    <div class="sim-canvas-wrap" style="height:320px">
-                        <div class="sim-status idle" id="coll-status">Ready</div>
-                        <canvas id="coll-canvas"></canvas>
-                    </div>
-                </div>
-                <div class="w-full lg:w-80 flex flex-col gap-4 scroll-reveal-left">
-                    <div class="bg-lab-card border border-lab-border rounded-xl p-5">
-                        <div class="text-xs font-mono text-lab-green uppercase tracking-wider mb-4">Ball A (Left)</div>
-                        <div class="space-y-3 mb-5">
-                            <div>
-                                <div class="flex justify-between text-xs mb-1"><span class="text-lab-muted">Mass</span><span class="font-mono text-lab-text" id="coll-m1-val">2.0 kg</span></div>
-                                <input type="range" id="coll-m1" min="0.5" max="10" value="2" step="0.1" oninput="collSetParam()">
-                            </div>
-                            <div>
-                                <div class="flex justify-between text-xs mb-1"><span class="text-lab-muted">Velocity</span><span class="font-mono text-lab-text" id="coll-v1-val">4.0 m/s</span></div>
-                                <input type="range" id="coll-v1" min="-10" max="10" value="4" step="0.5" oninput="collSetParam()">
-                            </div>
-                        </div>
-                        <div class="text-xs font-mono text-lab-cyan uppercase tracking-wider mb-3">Ball B (Right)</div>
-                        <div class="space-y-3 mb-4">
-                            <div>
-                                <div class="flex justify-between text-xs mb-1"><span class="text-lab-muted">Mass</span><span class="font-mono text-lab-text" id="coll-m2-val">3.0 kg</span></div>
-                                <input type="range" id="coll-m2" min="0.5" max="10" value="3" step="0.1" oninput="collSetParam()">
-                            </div>
-                            <div>
-                                <div class="flex justify-between text-xs mb-1"><span class="text-lab-muted">Velocity</span><span class="font-mono text-lab-text" id="coll-v2-val">-2.0 m/s</span></div>
-                                <input type="range" id="coll-v2" min="-10" max="10" value="-2" step="0.5" oninput="collSetParam()">
-                            </div>
-                        </div>
-                        <div class="text-xs font-mono text-lab-orange uppercase tracking-wider mb-3">Elasticity</div>
-                        <div class="mb-4">
-                            <div class="flex justify-between text-xs mb-1"><span class="text-lab-muted">Coefficient (e)</span><span class="font-mono text-lab-text" id="coll-e-val">1.00</span></div>
-                            <input type="range" id="coll-e" min="0" max="1" value="1" step="0.01" oninput="collSetParam()">
-                        </div>
-                        <div class="flex gap-2">
-                            <button class="btn-primary btn-sm flex-1" id="coll-start" onclick="collStart()"><i class="fas fa-play mr-1"></i>Collide</button>
-                            <button class="btn-icon" onclick="collReset()" title="Reset"><i class="fas fa-redo"></i></button>
-                            <button class="btn-icon" onclick="collAIOptimize()" title="AI Optimize"><i class="fas fa-magic"></i></button>
-                        </div>
-                    </div>
-                    <div class="bg-lab-card border border-lab-border rounded-xl p-5">
-                        <div class="text-xs font-mono text-lab-cyan uppercase tracking-wider mb-3">Conservation Check</div>
-                        <div class="data-row"><span class="data-label">p (before)</span><span class="data-value" id="coll-p-before">—</span></div>
-                        <div class="data-row"><span class="data-label">p (after)</span><span class="data-value" id="coll-p-after">—</span></div>
-                        <div class="data-row"><span class="data-label">KE (before)</span><span class="data-value" id="coll-ke-before">—</span></div>
-                        <div class="data-row"><span class="data-label">KE (after)</span><span class="data-value" id="coll-ke-after">—</span></div>
-                        <div class="data-row"><span class="data-label">KE Conserved</span><span class="data-value" id="coll-ke-pct">—</span></div>
-                    </div>
-                    <div class="ai-panel" id="coll-ai">
-                        <div class="ai-label"><i class="fas fa-robot"></i> AI Analysis</div>
-                        <div id="coll-ai-text">Set up the collision and press Collide to see AI analysis...</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
+<script>
+/* ============================================================
+   UTILITY FUNCTIONS
+   ============================================================ */
+function getCtx(id) { return document.getElementById(id).getContext('2d'); }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function drawArrow(ctx, x1, y1, x2, y2, color, lw) {
+    lw = lw || 2;
+    const headLen = 10;
+    const dx = x2 - x1, dy = y2 - y1;
+    const angle = Math.atan2(dy, dx);
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - headLen * Math.cos(angle - 0.4), y2 - headLen * Math.sin(angle - 0.4));
+    ctx.lineTo(x2 - headLen * Math.cos(angle + 0.4), y2 - headLen * Math.sin(angle + 0.4));
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+}
+function drawDashedLine(ctx, x1, y1, x2, y2, color, lw) {
+    ctx.save();
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = color || '#4b5563';
+    ctx.lineWidth = lw || 1;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+}
 
-    <div class="section-divider"></div>
+/* ============================================================
+   CATEGORY SWITCHING
+   ============================================================ */
+let activeCat = 'reflection';
+let animId = null;
 
-    <section id="ai-section" class="py-24 px-6">
-        <div class="max-w-4xl mx-auto text-center">
-            <div class="scroll-reveal">
-                <div class="inline-flex items-center gap-2 bg-lab-card border border-lab-border rounded-full px-4 py-1.5 mb-6">
-                    <i class="fas fa-microchip text-lab-green text-xs"></i>
-                    <span class="text-lab-muted text-xs font-mono">Intelligent Physics Engine</span>
-                </div>
-            </div>
-            <h2 class="font-display text-3xl sm:text-4xl font-bold mb-6 scroll-reveal" style="transition-delay:0.1s">AI That Understands Physics</h2>
-            <p class="text-lab-muted text-lg max-w-2xl mx-auto mb-12 scroll-reveal" style="transition-delay:0.2s">Every simulation is paired with an AI analyst that computes equations, validates conservation laws, and provides educational insights in real time.</p>
-            <div class="grid sm:grid-cols-3 gap-6">
-                <div class="bg-lab-card border border-lab-border rounded-xl p-6 scroll-reveal" style="transition-delay:0.1s">
-                    <div class="text-3xl font-bold text-lab-green font-mono mb-2">01</div>
-                    <h3 class="font-display font-semibold mb-2">Observe</h3>
-                    <p class="text-lab-muted text-sm">AI monitors all parameters and simulation state continuously during the experiment.</p>
-                </div>
-                <div class="bg-lab-card border border-lab-border rounded-xl p-6 scroll-reveal" style="transition-delay:0.2s">
-                    <div class="text-3xl font-bold text-lab-cyan font-mono mb-2">02</div>
-                    <h3 class="font-display font-semibold mb-2">Compute</h3>
-                    <p class="text-lab-muted text-sm">Real-time equation solving, energy tracking, and conservation law verification.</p>
-                </div>
-                <div class="bg-lab-card border border-lab-border rounded-xl p-6 scroll-reveal" style="transition-delay:0.3s">
-                    <div class="text-3xl font-bold text-lab-orange font-mono mb-2">03</div>
-                    <h3 class="font-display font-semibold mb-2">Explain</h3>
-                    <p class="text-lab-muted text-sm">Clear, contextual explanations with equations and computed values that update live.</p>
-                </div>
-            </div>
-        </div>
-    </section>
+function switchCat(cat) {
+    if (animId) { cancelAnimationFrame(animId); animId = null; }
+    document.querySelectorAll('.sim-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    const panel = document.getElementById('panel-' + cat);
+    if (panel) panel.classList.add('active');
+    const nav = document.querySelector('[data-cat="' + cat + '"]');
+    if (nav) nav.classList.add('active');
+    activeCat = cat;
+    // Close mobile sidebar
+    document.querySelector('.sidebar').classList.remove('open');
+    // Initialize the simulation
+    initSim(cat);
+}
 
-    <footer class="border-t border-lab-border py-10 px-6">
-        <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div class="flex items-center gap-2">
-                <div class="w-6 h-6 rounded-md bg-gradient-to-br from-lab-green to-lab-cyan flex items-center justify-center">
-                    <i class="fas fa-atom text-lab-bg text-xs"></i>
-                </div>
-                <span class="font-display font-bold text-sm">PhysLab<span class="text-lab-green">AI</span></span>
-            </div>
-            <p class="text-lab-muted text-xs font-mono">Real-time physics simulations powered by browser computation.</p>
-        </div>
-    </footer>
-
-    <script>
-    /* ==================== UTILITIES ==================== */
-    function clamp(v, mn, mx) { return Math.max(mn, Math.min(mx, v)); }
-    function fmt(v, d) { d = d !== undefined ? d : 2; return Number(v).toFixed(d); }
-
-    function showToast(msg, type) {
-        type = type || 'info';
-        var c = document.getElementById('toast-container');
-        var t = document.createElement('div');
-        t.className = 'toast toast-' + type;
-        t.textContent = msg;
-        c.appendChild(t);
-        requestAnimationFrame(function() { requestAnimationFrame(function() { t.classList.add('show'); }); });
-        setTimeout(function() { t.classList.remove('show'); setTimeout(function() { t.remove(); }, 350); }, 3000);
+function initSim(cat) {
+    switch(cat) {
+        case 'reflection': drawReflection(); break;
+        case 'inelastic': resetInelastic(); break;
+        case 'cinelastic': resetCInelastic(); break;
+        case 'relative': resetRelative(); break;
+        case 'vernier': resetVernier(); break;
+        case 'spherometer': resetSpherometer(); break;
+        case 'micrometer': resetMicrometer(); break;
+        case 'microscope': resetMicroscope(); break;
     }
+}
 
-    function scrollToLab() {
-        document.getElementById('projectile').scrollIntoView({ behavior:'smooth' });
-        showToast('Welcome to the Physics Lab!', 'success');
-    }
+/* ============================================================
+   REFLECTION & REFRACTION
+   ============================================================ */
+function drawReflection() {
+    const cv = document.getElementById('cvReflection');
+    const ctx = cv.getContext('2d');
+    const W = cv.width, H = cv.height;
+    const midY = H / 2;
+    const midX = W / 2;
+    ctx.clearRect(0, 0, W, H);
 
-    function moveCardGlow(e, el) {
-        var r = el.getBoundingClientRect();
-        el.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 100) + '%');
-        el.style.setProperty('--my', ((e.clientY - r.top) / r.height * 100) + '%');
-    }
+    const n1 = parseFloat(document.getElementById('refMed1').value);
+    const n2 = parseFloat(document.getElementById('refMed2').value);
+    const thetaI = parseFloat(document.getElementById('refAngle').value) * Math.PI / 180;
 
-    /* Button ripple effect */
-    document.addEventListener('click', function(e) {
-        var btn = e.target.closest('.btn-primary');
-        if (!btn) return;
-        var rect = btn.getBoundingClientRect();
-        var ripple = document.createElement('span');
-        ripple.className = 'ripple';
-        var size = Math.max(rect.width, rect.height);
-        ripple.style.width = ripple.style.height = size + 'px';
-        ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
-        ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
-        btn.appendChild(ripple);
-        setTimeout(function() { ripple.remove(); }, 600);
-    });
+    // Background mediums
+    // Top medium
+    const topGrad = ctx.createLinearGradient(0, 0, 0, midY);
+    const topAlpha = clamp((n1 - 1) * 0.3, 0, 0.5);
+    topGrad.addColorStop(0, 'rgba(45,212,191,' + (0.02 + topAlpha).toFixed(3) + ')');
+    topGrad.addColorStop(1, 'rgba(45,212,191,' + (0.05 + topAlpha * 1.5).toFixed(3) + ')');
+    ctx.fillStyle = topGrad;
+    ctx.fillRect(0, 0, W, midY);
 
-    /* ==================== SCROLL ANIMATIONS ==================== */
-    var scrollObs = new IntersectionObserver(function(entries) {
-        for (var i = 0; i < entries.length; i++) {
-            if (entries[i].isIntersecting) entries[i].target.classList.add('visible');
-        }
-    }, { threshold: 0.08, rootMargin: '0px 0px -30px 0px' });
-    document.querySelectorAll('.scroll-reveal,.scroll-reveal-left,.scroll-reveal-right').forEach(function(el) { scrollObs.observe(el); });
+    // Bottom medium
+    const botGrad = ctx.createLinearGradient(0, midY, 0, H);
+    const botAlpha = clamp((n2 - 1) * 0.3, 0, 0.5);
+    botGrad.addColorStop(0, 'rgba(240,160,48,' + (0.05 + botAlpha * 1.5).toFixed(3) + ')');
+    botGrad.addColorStop(1, 'rgba(240,160,48,' + (0.02 + botAlpha).toFixed(3) + ')');
+    ctx.fillStyle = botGrad;
+    ctx.fillRect(0, midY, W, H - midY);
 
-    /* Counter animation */
-    var counterObs = new IntersectionObserver(function(entries) {
-        for (var i = 0; i < entries.length; i++) {
-            var e = entries[i];
-            if (e.isIntersecting && !e.target.dataset.counted) {
-                e.target.dataset.counted = 'true';
-                var target = parseInt(e.target.dataset.target);
-                var current = 0;
-                var step = Math.max(1, Math.ceil(target / 50));
-                var iv = setInterval(function() {
-                    current += step;
-                    if (current >= target) { current = target; clearInterval(iv); }
-                    e.target.textContent = current + '+';
-                }, 30);
-            }
-        }
-    }, { threshold: 0.5 });
-    document.querySelectorAll('.counter').forEach(function(el) { counterObs.observe(el); });
+    // Interface line
+    ctx.strokeStyle = '#e8e6e3';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, midY);
+    ctx.lineTo(W, midY);
+    ctx.stroke();
 
-    /* ==================== HERO PARTICLES ==================== */
-    var heroParticles = (function() {
-        var canvas, ctx, W, H, particles = [], mouse = { x: -999, y: -999 };
-        function resize() {
-            var p = canvas.parentElement;
-            W = canvas.width = p.clientWidth;
-            H = canvas.height = p.clientHeight;
-        }
-        function init() {
-            canvas = document.getElementById('hero-canvas');
-            ctx = canvas.getContext('2d');
-            resize();
-            window.addEventListener('resize', resize);
-            for (var i = 0; i < 80; i++) {
-                particles.push({
-                    x: Math.random() * 2000, y: Math.random() * 1200,
-                    vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.4,
-                    r: Math.random() * 2 + 0.5, a: Math.random() * 0.5 + 0.2
-                });
-            }
-            canvas.parentElement.addEventListener('mousemove', function(e) {
-                var r = canvas.getBoundingClientRect();
-                mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top;
-            });
-            canvas.parentElement.addEventListener('mouseleave', function() { mouse.x = -999; mouse.y = -999; });
-        }
-        function draw() {
-            if (!ctx) return;
-            ctx.clearRect(0, 0, W, H);
-            for (var i = 0; i < particles.length; i++) {
-                var p = particles[i];
-                p.x += p.vx; p.y += p.vy;
-                if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
-                if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
-                var dx = p.x - mouse.x, dy = p.y - mouse.y;
-                var dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist < 150 && dist > 0) {
-                    var force = (150 - dist) / 150 * 0.6;
-                    p.vx += (dx / dist) * force * 0.08;
-                    p.vy += (dy / dist) * force * 0.08;
-                }
-                p.vx *= 0.995; p.vy *= 0.995;
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(0,255,136,' + p.a + ')';
-                ctx.fill();
-                for (var j = i + 1; j < particles.length; j++) {
-                    var q = particles[j];
-                    var ddx = p.x - q.x, ddy = p.y - q.y;
-                    var d = Math.sqrt(ddx * ddx + ddy * ddy);
-                    if (d < 130) {
-                        ctx.beginPath();
-                        ctx.moveTo(p.x, p.y);
-                        ctx.lineTo(q.x, q.y);
-                        ctx.strokeStyle = 'rgba(0,255,136,' + (0.07 * (1 - d / 130)) + ')';
-                        ctx.lineWidth = 0.5;
-                        ctx.stroke();
-                    }
-                }
-            }
-            requestAnimationFrame(draw);
-        }
-        return { init: init, draw: draw };
-    })();
+    // Normal (dashed)
+    drawDashedLine(ctx, midX, 30, midX, H - 30, '#6b7280', 1);
 
-    /* ==================== CANVAS HELPER ==================== */
-    function fitCanvas(canvas) {
-        var p = canvas.parentElement;
-        var w = p.clientWidth;
-        var h = p.clientHeight;
-        if (w < 10) w = 400;
-        if (h < 10) h = 300;
-        var dpr = Math.min(window.devicePixelRatio || 1, 2);
-        canvas.width = w * dpr;
-        canvas.height = h * dpr;
-        canvas.style.width = w + 'px';
-        canvas.style.height = h + 'px';
-        var ctx = canvas.getContext('2d');
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        return { w: w, h: h, ctx: ctx };
-    }
+    // Medium labels
+    ctx.font = '600 14px Space Grotesk';
+    ctx.fillStyle = '#2dd4bf';
+    ctx.textAlign = 'left';
+    const m1Name = document.getElementById('refMed1').selectedOptions[0].text;
+    ctx.fillText(m1Name + ' (n=' + n1 + ')', 14, 24);
+    ctx.fillStyle = '#f0a030';
+    const m2Name = document.getElementById('refMed2').selectedOptions[0].text;
+    ctx.fillText(m2Name + ' (n=' + n2 + ')', 14, midY + 22);
 
-    /* Rounded rect polyfill */
-    function roundedRect(ctx, x, y, w, h, r) {
-        r = Math.min(r, w / 2, h / 2);
+    // Ray length
+    const rayLen = Math.min(W, H) * 0.38;
+
+    // Incident ray
+    const ix = midX - rayLen * Math.sin(thetaI);
+    const iy = midY - rayLen * Math.cos(thetaI);
+    drawArrow(ctx, ix, iy, midX, midY, '#f0a030', 2.5);
+
+    // Reflected ray
+    const rx = midX + rayLen * Math.sin(thetaI);
+    const ry = midY - rayLen * Math.cos(thetaI);
+    drawArrow(ctx, midX, midY, rx, ry, '#ef4444', 2.5);
+
+    // Refracted ray
+    const sinThetaR = (n1 / n2) * Math.sin(thetaI);
+    const isTIR = Math.abs(sinThetaR) > 1;
+    const tirCard = document.getElementById('refTIRCard');
+
+    if (!isTIR) {
+        const thetaR = Math.asin(sinThetaR);
+        const fx = midX + rayLen * Math.sin(thetaR);
+        const fy = midY + rayLen * Math.cos(thetaR);
+        drawArrow(ctx, midX, midY, fx, fy, '#2dd4bf', 2.5);
+
+        // Angle arc for refraction
         ctx.beginPath();
-        ctx.moveTo(x + r, y);
-        ctx.lineTo(x + w - r, y);
-        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-        ctx.lineTo(x + w, y + h - r);
-        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-        ctx.lineTo(x + r, y + h);
-        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-        ctx.lineTo(x, y + r);
-        ctx.quadraticCurveTo(x, y, x + r, y);
-        ctx.closePath();
-    }
-
-    /* Status badge helper */
-    function setStatus(id, cls, text) {
-        var el = document.getElementById(id);
-        if (el) { el.className = 'sim-status ' + cls; el.textContent = text; }
-    }
-
-    /* Slider animation */
-    function animateSliders(sliders, callback) {
-        var completed = 0;
-        sliders.forEach(function(s) {
-            var el = document.getElementById(s.id);
-            var start = parseFloat(el.value);
-            var diff = s.val - start;
-            var duration = 500;
-            var t0 = performance.now();
-            function step(now) {
-                var t = Math.min(1, (now - t0) / duration);
-                var ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-                el.value = start + diff * ease;
-                el.dispatchEvent(new Event('input'));
-                if (t < 1) requestAnimationFrame(step);
-                else { completed++; if (completed === sliders.length && callback) callback(); }
-            }
-            requestAnimationFrame(step);
-        });
-    }
-
-    /* ==================== PROJECTILE MOTION ==================== */
-    var proj = {
-        canvas: null, ctx: null, W: 0, H: 0,
-        params: { angle: 45, v0: 25, g: 9.81 },
-        state: null,
-        scale: 7, groundY: 0,
-
-        createDefaultState: function() {
-            return { x:0, y:0, vx:0, vy:0, t:0, trail:[], running:false, landed:false, maxHeight:0 };
-        },
-
-        init: function() {
-            this.canvas = document.getElementById('proj-canvas');
-            var info = fitCanvas(this.canvas);
-            this.ctx = info.ctx; this.W = info.w; this.H = info.h;
-            this.groundY = this.H - 50;
-            this.scale = Math.max(1, Math.min(7, (this.W - 80) / 120));
-            if (!this.state) this.state = this.createDefaultState();
-            this.draw();
-        },
-
-        setParam: function() {
-            this.params.angle = parseFloat(document.getElementById('proj-angle').value);
-            this.params.v0 = parseFloat(document.getElementById('proj-vel').value);
-            this.params.g = parseFloat(document.getElementById('proj-grav').value);
-            document.getElementById('proj-angle-val').textContent = this.params.angle + '°';
-            document.getElementById('proj-vel-val').textContent = this.params.v0 + ' m/s';
-            document.getElementById('proj-grav-val').textContent = this.params.g.toFixed(2) + ' m/s²';
-            if (!this.state.running) { this.state = this.createDefaultState(); this.draw(); }
-            this.updateAI('idle');
-        },
-
-        launch: function() {
-            if (this.state.running) return;
-            var rad = this.params.angle * Math.PI / 180;
-            this.state = { x:0, y:0, vx: this.params.v0 * Math.cos(rad), vy: this.params.v0 * Math.sin(rad), t:0, trail:[], running:true, landed:false, maxHeight:0 };
-            document.getElementById('proj-launch').innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Flying...';
-            setStatus('proj-status', 'running', 'Simulating');
-            showToast('Projectile launched at ' + this.params.angle + '°!', 'success');
-            this.updateAI('launch');
-        },
-
-        reset: function() {
-            this.state = this.createDefaultState();
-            document.getElementById('proj-launch').innerHTML = '<i class="fas fa-play mr-1"></i>Launch';
-            setStatus('proj-status', 'idle', 'Ready');
-            ['proj-range','proj-maxh','proj-tof','proj-speed'].forEach(function(id) { document.getElementById(id).textContent = '—'; });
-            this.updateAI('idle');
-            this.draw();
-        },
-
-        update: function(dt) {
-            if (!this.state.running || this.state.landed) return;
-            var s = this.state, p = this.params, steps = 4, subDt = dt / steps;
-            for (var i = 0; i < steps; i++) {
-                s.vy -= p.g * subDt;
-                s.x += s.vx * subDt;
-                s.y += s.vy * subDt;
-                s.t += subDt;
-                if (s.y > s.maxHeight) s.maxHeight = s.y;
-                if (s.y <= 0 && s.t > 0.05) {
-                    s.y = 0; s.landed = true; s.running = false;
-                    document.getElementById('proj-launch').innerHTML = '<i class="fas fa-play mr-1"></i>Launch';
-                    setStatus('proj-status', 'done', 'Landed');
-                    this.updateAI('landed');
-                    showToast('Landed at ' + fmt(s.x) + ' m range!', 'info');
-                    break;
-                }
-            }
-            s.trail.push({ x: s.x, y: s.y });
-            if (s.trail.length > 600) s.trail.shift();
-            var speed = Math.sqrt(s.vx * s.vx + s.vy * s.vy);
-            document.getElementById('proj-range').textContent = fmt(s.x) + ' m';
-            document.getElementById('proj-maxh').textContent = fmt(s.maxHeight) + ' m';
-            document.getElementById('proj-tof').textContent = fmt(s.t) + ' s';
-            document.getElementById('proj-speed').textContent = fmt(speed) + ' m/s';
-        },
-
-        draw: function() {
-            if (!this.ctx || this.W < 20 || this.H < 20) return;
-            var ctx = this.ctx, W = this.W, H = this.H, sc = this.scale, gy = this.groundY;
-            ctx.clearRect(0, 0, W, H);
-
-            /* Grid */
-            ctx.strokeStyle = 'rgba(26,35,50,0.4)';
-            ctx.lineWidth = 0.5;
-            var gridStep = sc * 10;
-            if (gridStep < 20) gridStep = sc * 5;
-            for (var x = 0; x <= W; x += gridStep) {
-                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, gy); ctx.stroke();
-            }
-            for (var y = gy; y >= 0; y -= gridStep) {
-                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-            }
-
-            /* Ground */
-            ctx.fillStyle = '#0f1520';
-            ctx.fillRect(0, gy, W, H - gy);
-            ctx.strokeStyle = '#1e2d3d';
-            ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
-
-            var ox = 30, oy = gy;
-
-            /* Launch pad */
-            ctx.fillStyle = '#1a2332';
-            ctx.fillRect(ox - 10, oy - 5, 20, 5);
-
-            /* Angle arc (when idle) */
-            if (!this.state.running && !this.state.landed) {
-                var rad = this.params.angle * Math.PI / 180;
-                ctx.beginPath();
-                ctx.arc(ox, oy, 35, -rad, 0);
-                ctx.strokeStyle = 'rgba(0,255,136,0.4)';
-                ctx.lineWidth = 1.5;
-                ctx.stroke();
-                var mid = -rad / 2;
-                ctx.fillStyle = '#00ff88';
-                ctx.font = '11px JetBrains Mono';
-                ctx.fillText(this.params.angle + '°', ox + 42 * Math.cos(mid) - 8, oy + 42 * Math.sin(mid) + 4);
-
-                /* Predicted trajectory */
-                var pvx = this.params.v0 * Math.cos(rad), pvy = this.params.v0 * Math.sin(rad);
-                ctx.setLineDash([4, 4]);
-                ctx.beginPath();
-                ctx.moveTo(ox, oy);
-                for (var t = 0; t < 20; t += 0.05) {
-                    var px = pvx * t, py = pvy * t - 0.5 * this.params.g * t * t;
-                    if (py < 0 && t > 0.1) break;
-                    ctx.lineTo(ox + px * sc, oy - py * sc);
-                }
-                ctx.strokeStyle = 'rgba(0,255,136,0.12)';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-                ctx.setLineDash([]);
-            }
-
-            /* Trail */
-            var trail = this.state.trail;
-            if (trail.length > 1) {
-                /* Glow trail */
-                ctx.beginPath();
-                ctx.moveTo(ox + trail[0].x * sc, oy - trail[0].y * sc);
-                for (var i = 1; i < trail.length; i++) {
-                    ctx.lineTo(ox + trail[i].x * sc, oy - trail[i].y * sc);
-                }
-                ctx.strokeStyle = 'rgba(0,255,136,0.15)';
-                ctx.lineWidth = 6;
-                ctx.stroke();
-
-                /* Main trail */
-                ctx.beginPath();
-                ctx.moveTo(ox + trail[0].x * sc, oy - trail[0].y * sc);
-                for (var i = 1; i < trail.length; i++) {
-                    ctx.lineTo(ox + trail[i].x * sc, oy - trail[i].y * sc);
-                }
-                ctx.strokeStyle = '#00ff88';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-
-                /* Dots */
-                var dotStep = Math.max(1, Math.floor(trail.length / 15));
-                for (var i = 0; i < trail.length; i += dotStep) {
-                    ctx.beginPath();
-                    ctx.arc(ox + trail[i].x * sc, oy - trail[i].y * sc, 2.5, 0, Math.PI * 2);
-                    ctx.fillStyle = 'rgba(0,255,136,0.5)';
-                    ctx.fill();
-                }
-            }
-
-            /* Ball */
-            var bx = ox + this.state.x * sc;
-            var by = oy - Math.max(0, this.state.y) * sc;
-            ctx.beginPath();
-            ctx.arc(bx, by, 8, 0, Math.PI * 2);
-            var grad = ctx.createRadialGradient(bx - 2, by - 2, 1, bx, by, 8);
-            grad.addColorStop(0, '#88ffcc');
-            grad.addColorStop(1, '#00cc6a');
-            ctx.fillStyle = grad;
-            ctx.shadowColor = '#00ff88';
-            ctx.shadowBlur = 15;
-            ctx.fill();
-            ctx.shadowBlur = 0;
-
-            /* Velocity vector */
-            if (this.state.running) {
-                var vscale = 2;
-                var vxEnd = bx + this.state.vx * vscale;
-                var vyEnd = by - this.state.vy * vscale;
-                ctx.beginPath();
-                ctx.moveTo(bx, by);
-                ctx.lineTo(vxEnd, vyEnd);
-                ctx.strokeStyle = '#ff6b35';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                var angle = Math.atan2(-(this.state.vy), this.state.vx);
-                ctx.beginPath();
-                ctx.moveTo(vxEnd, vyEnd);
-                ctx.lineTo(vxEnd - 8 * Math.cos(angle - 0.4), vyEnd + 8 * Math.sin(angle - 0.4));
-                ctx.lineTo(vxEnd - 8 * Math.cos(angle + 0.4), vyEnd + 8 * Math.sin(angle + 0.4));
-                ctx.closePath();
-                ctx.fillStyle = '#ff6b35';
-                ctx.fill();
-            }
-        },
-
-        updateAI: function(mode) {
-            var p = this.params, s = this.state;
-            var rad = p.angle * Math.PI / 180;
-            var R = (p.v0 * p.v0 * Math.sin(2 * rad)) / p.g;
-            var Hm = (p.v0 * p.v0 * Math.sin(rad) * Math.sin(rad)) / (2 * p.g);
-            var T = (2 * p.v0 * Math.sin(rad)) / p.g;
-            var el = document.getElementById('proj-ai-text');
-            if (mode === 'idle') {
-                el.innerHTML = 'Predicted: <span class="eq">θ=' + p.angle + '°, v₀=' + p.v0 + ' m/s</span><br>Range = <span class="val">' + fmt(R) + ' m</span> | Max H = <span class="val">' + fmt(Hm) + ' m</span><br>Flight Time = <span class="val">' + fmt(T) + ' s</span><div class="insight">' + (p.angle === 45 ? 'Optimal angle for max range in vacuum.' : Math.abs(45 - p.angle) + '° from optimal 45°. Range is ' + fmt(Math.cos(2 * rad) / Math.cos(Math.PI/4) * 100, 1) + '% of maximum.') + '</div>';
-            } else if (mode === 'launch') {
-                el.innerHTML = 'In flight. Tracking trajectory...<br>Initial KE/m = <span class="val">' + fmt(0.5 * p.v0 * p.v0) + ' J/kg</span><div class="insight">Orange arrow shows velocity vector. Watch it rotate from upward to downward as gravity decelerates then accelerates the projectile.</div>';
-            } else if (mode === 'landed') {
-                var err = Math.abs(s.x - R);
-                el.innerHTML = 'Landed at <span class="val">' + fmt(s.x) + ' m</span> (predicted: ' + fmt(R) + ' m)<br>Max height: <span class="val">' + fmt(s.maxHeight) + ' m</span> | Time: <span class="val">' + fmt(s.t) + ' s</span><div class="insight">Numerical error: ' + fmt(err, 4) + ' m. Gravity did <span class="val">' + fmt(p.g * s.maxHeight) + ' J/kg</span> of work. Energy fully conserved — verified by identical launch and landing speeds.</div>';
-            }
-        }
-    };
-
-    function projSetParam() { proj.setParam(); }
-    function projLaunch() { proj.launch(); }
-    function projReset() { proj.reset(); }
-    function projAIOptimize() {
-        animateSliders([
-            { id:'proj-angle', val:45 }, { id:'proj-vel', val:30 }, { id:'proj-grav', val:9.81 }
-        ], function() { proj.setParam(); showToast('AI: Optimal 45° for maximum range set', 'success'); });
-    }
-
-    /* ==================== PENDULUM ==================== */
-    var pend = {
-        canvas: null, ctx: null, W: 0, H: 0,
-        params: { len: 1.5, angle: 30, g: 9.81, damp: 0 },
-        state: null,
-        mass: 1.0,
-        pivotX: 0, pivotY: 0, scale: 120,
-
-        createDefaultState: function() {
-            return { theta: this.params.angle * Math.PI / 180, omega: 0, t: 0, running: false, trail: [] };
-        },
-
-        init: function() {
-            this.canvas = document.getElementById('pend-canvas');
-            var info = fitCanvas(this.canvas);
-            this.ctx = info.ctx; this.W = info.w; this.H = info.h;
-            this.pivotX = this.W / 2;
-            this.pivotY = 60;
-            this.scale = Math.max(30, Math.min(120, (this.H - 120) / 3.2));
-            if (!this.state) this.state = this.createDefaultState();
-            this.updateEnergy();
-            this.draw();
-        },
-
-        setParam: function() {
-            this.params.len = parseFloat(document.getElementById('pend-len').value);
-            this.params.angle = parseFloat(document.getElementById('pend-ang').value);
-            this.params.g = parseFloat(document.getElementById('pend-grav').value);
-            this.params.damp = parseFloat(document.getElementById('pend-damp').value);
-            document.getElementById('pend-len-val').textContent = this.params.len + ' m';
-            document.getElementById('pend-ang-val').textContent = this.params.angle + '°';
-            document.getElementById('pend-grav-val').textContent = this.params.g.toFixed(2) + ' m/s²';
-            document.getElementById('pend-damp-val').textContent = this.params.damp.toFixed(2);
-            if (!this.state.running) {
-                this.state = this.createDefaultState();
-                this.updateEnergy(); this.draw();
-            }
-            this.updateAI();
-        },
-
-        toggle: function() {
-            this.state.running = !this.state.running;
-            var btn = document.getElementById('pend-toggle');
-            if (this.state.running) {
-                btn.innerHTML = '<i class="fas fa-pause mr-1"></i>Pause';
-                setStatus('pend-status', 'running', 'Oscillating');
-                showToast('Pendulum released', 'success');
-            } else {
-                btn.innerHTML = '<i class="fas fa-play mr-1"></i>Start';
-                setStatus('pend-status', 'idle', 'Paused');
-            }
-            this.updateAI();
-        },
-
-        reset: function() {
-            this.state = this.createDefaultState();
-            document.getElementById('pend-toggle').innerHTML = '<i class="fas fa-play mr-1"></i>Start';
-            setStatus('pend-status', 'idle', 'Ready');
-            this.updateEnergy(); this.draw(); this.updateAI();
-        },
-
-        update: function(dt) {
-            if (!this.state.running) return;
-            var s = this.state, p = this.params, steps = 8, subDt = dt / steps;
-            for (var i = 0; i < steps; i++) {
-                var f = function(th, om) { return { dth: om, dom: -(p.g / p.len) * Math.sin(th) - p.damp * om }; };
-                var k1 = f(s.theta, s.omega);
-                var k2 = f(s.theta + k1.dth * subDt / 2, s.omega + k1.dom * subDt / 2);
-                var k3 = f(s.theta + k2.dth * subDt / 2, s.omega + k2.dom * subDt / 2);
-                var k4 = f(s.theta + k3.dth * subDt, s.omega + k3.dom * subDt);
-                s.theta += (k1.dth + 2 * k2.dth + 2 * k3.dth + k4.dth) * subDt / 6;
-                s.omega += (k1.dom + 2 * k2.dom + 2 * k3.dom + k4.dom) * subDt / 6;
-                s.t += subDt;
-            }
-            var bx = this.pivotX + Math.sin(s.theta) * p.len * this.scale;
-            var by = this.pivotY + Math.cos(s.theta) * p.len * this.scale;
-            s.trail.push({ x: bx, y: by });
-            if (s.trail.length > 200) s.trail.shift();
-            document.getElementById('pend-cur-ang').textContent = fmt(s.theta * 180 / Math.PI, 1) + '°';
-            document.getElementById('pend-cur-vel').textContent = fmt(s.omega, 2) + ' rad/s';
-            var Tcalc = 2 * Math.PI * Math.sqrt(p.len / p.g);
-            document.getElementById('pend-period').textContent = fmt(Tcalc, 3) + ' s';
-            this.updateEnergy();
-        },
-
-        updateEnergy: function() {
-            var s = this.state, p = this.params, m = this.mass;
-            var v = s.omega * p.len;
-            var KE = 0.5 * m * v * v;
-            var PE = m * p.g * p.len * (1 - Math.cos(s.theta));
-            var TE = KE + PE;
-            var maxE = Math.max(TE, 0.001);
-            document.getElementById('pend-ke').textContent = fmt(KE, 3) + ' J';
-            document.getElementById('pend-pe').textContent = fmt(PE, 3) + ' J';
-            document.getElementById('pend-te').textContent = fmt(TE, 3) + ' J';
-            document.getElementById('pend-ke-bar').style.width = (KE / maxE * 100) + '%';
-            document.getElementById('pend-pe-bar').style.width = (PE / maxE * 100) + '%';
-        },
-
-        draw: function() {
-            if (!this.ctx || this.W < 20 || this.H < 20) return;
-            var ctx = this.ctx, W = this.W, H = this.H, sc = this.scale, p = this.params, s = this.state;
-            var px = this.pivotX, py = this.pivotY;
-            ctx.clearRect(0, 0, W, H);
-
-            /* Arc path */
-            ctx.beginPath();
-            ctx.arc(px, py, p.len * sc, Math.PI / 2 - p.angle * Math.PI / 180, Math.PI / 2 + p.angle * Math.PI / 180);
-            ctx.strokeStyle = 'rgba(0,180,216,0.08)';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([3, 3]);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            /* Trail */
-            if (s.trail.length > 2) {
-                for (var i = 1; i < s.trail.length; i++) {
-                    var alpha = (i / s.trail.length) * 0.4;
-                    ctx.beginPath();
-                    ctx.moveTo(s.trail[i - 1].x, s.trail[i - 1].y);
-                    ctx.lineTo(s.trail[i].x, s.trail[i].y);
-                    ctx.strokeStyle = 'rgba(0,180,216,' + alpha + ')';
-                    ctx.lineWidth = 2;
-                    ctx.stroke();
-                }
-            }
-
-            var bx = px + Math.sin(s.theta) * p.len * sc;
-            var by = py + Math.cos(s.theta) * p.len * sc;
-
-            /* Equilibrium line */
-            ctx.beginPath();
-            ctx.moveTo(px, py);
-            ctx.lineTo(px, py + p.len * sc + 20);
-            ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([4, 4]);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            /* String */
-            ctx.beginPath();
-            ctx.moveTo(px, py);
-            ctx.lineTo(bx, by);
-            ctx.strokeStyle = '#6b7785';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            /* Angle arc */
-            if (Math.abs(s.theta) > 0.03) {
-                ctx.beginPath();
-                var startA = Math.PI / 2;
-                var endA = Math.PI / 2 - s.theta;
-                ctx.arc(px, py, 30, Math.min(startA, endA), Math.max(startA, endA));
-                ctx.strokeStyle = 'rgba(0,255,136,0.4)';
-                ctx.lineWidth = 1.5;
-                ctx.stroke();
-            }
-
-            /* Pivot */
-            ctx.beginPath();
-            ctx.arc(px, py, 5, 0, Math.PI * 2);
-            ctx.fillStyle = '#4a5568';
-            ctx.fill();
-
-            /* Bob */
-            ctx.beginPath();
-            ctx.arc(bx, by, 16, 0, Math.PI * 2);
-            var grad = ctx.createRadialGradient(bx - 3, by - 3, 2, bx, by, 16);
-            grad.addColorStop(0, '#88eeff');
-            grad.addColorStop(1, '#0088aa');
-            ctx.fillStyle = grad;
-            ctx.shadowColor = '#00b4d8';
-            ctx.shadowBlur = 18;
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = '#e6edf3';
-            ctx.font = 'bold 10px JetBrains Mono';
-            ctx.textAlign = 'center';
-            ctx.fillText(this.mass + 'kg', bx, by + 4);
-            ctx.textAlign = 'start';
-        },
-
-        updateAI: function() {
-            var p = this.params, s = this.state;
-            var T = 2 * Math.PI * Math.sqrt(p.len / p.g);
-            var el = document.getElementById('pend-ai-text');
-            if (p.damp > 0.01) {
-                el.innerHTML = 'Damped: <span class="eq">b = ' + p.damp + '</span> | T₀ = <span class="val">' + fmt(T, 3) + ' s</span><div class="insight">Energy decays as E(t) = E₀·e<sup>-bt</sup>. ' + (p.damp > 0.2 ? 'Heavy damping — oscillations die quickly.' : 'Light damping — many visible oscillations before stopping.') + '</div>';
-            } else {
-                el.innerHTML = '<span class="eq">T = 2π√(L/g)</span> = <span class="val">' + fmt(T, 3) + ' s</span><br>f = <span class="val">' + fmt(1 / T, 3) + ' Hz</span> | ω = <span class="val">' + fmt(Math.sqrt(p.g / p.len), 3) + ' rad/s</span><div class="insight">' + (Math.abs(p.angle) < 15 ? 'Small-angle regime: approximation T ≈ 2π√(L/g) is accurate.' : 'Large angle (' + p.angle + '°): true period is longer than small-angle prediction. RK4 integration handles this accurately.') + '</div>';
-            }
-        }
-    };
-
-    function pendSetParam() { pend.setParam(); }
-    function pendToggle() { pend.toggle(); }
-    function pendReset() { pend.reset(); }
-    function pendAIOptimize() {
-        animateSliders([
-            { id:'pend-len', val:1.0 }, { id:'pend-ang', val:10 }, { id:'pend-grav', val:9.81 }, { id:'pend-damp', val:0 }
-        ], function() { pend.setParam(); showToast('AI: Small-angle regime for clean SHM', 'success'); });
-    }
-
-    /* ==================== SPRING-MASS ==================== */
-    var spring = {
-        canvas: null, gcanvas: null, ctx: null, gctx: null,
-        W: 0, H: 0, gW: 0, gH: 0,
-        params: { k: 20, m: 1, amp: 0.8, b: 0 },
-        state: null,
-        eqX: 0, scale: 100,
-
-        createDefaultState: function() {
-            return { x: this.params.amp, v: 0, t: 0, running: false, history: [] };
-        },
-
-        init: function() {
-            this.canvas = document.getElementById('spring-canvas');
-            var info = fitCanvas(this.canvas);
-            this.ctx = info.ctx; this.W = info.w; this.H = info.h;
-            this.eqX = this.W * 0.45;
-            this.scale = Math.max(30, Math.min(100, (this.W * 0.3) / 1.5));
-
-            this.gcanvas = document.getElementById('spring-graph');
-            var ginfo = fitCanvas(this.gcanvas);
-            this.gctx = ginfo.ctx; this.gW = ginfo.w; this.gH = ginfo.h;
-
-            if (!this.state) this.state = this.createDefaultState();
-            this.updateData(); this.draw(); this.drawGraph();
-        },
-
-        setParam: function() {
-            this.params.k = parseFloat(document.getElementById('spring-k').value);
-            this.params.m = parseFloat(document.getElementById('spring-m').value);
-            this.params.amp = parseFloat(document.getElementById('spring-a').value);
-            this.params.b = parseFloat(document.getElementById('spring-b').value);
-            document.getElementById('spring-k-val').textContent = this.params.k + ' N/m';
-            document.getElementById('spring-m-val').textContent = this.params.m.toFixed(1) + ' kg';
-            document.getElementById('spring-a-val').textContent = this.params.amp + ' m';
-            document.getElementById('spring-b-val').textContent = this.params.b.toFixed(2);
-            if (!this.state.running) {
-                this.state = this.createDefaultState();
-                this.updateData(); this.draw(); this.drawGraph();
-            }
-            this.updateAI();
-        },
-
-        toggle: function() {
-            this.state.running = !this.state.running;
-            var btn = document.getElementById('spring-toggle');
-            if (this.state.running) {
-                btn.innerHTML = '<i class="fas fa-pause mr-1"></i>Pause';
-                setStatus('spring-status', 'running', 'Oscillating');
-                showToast('Oscillator started', 'success');
-            } else {
-                btn.innerHTML = '<i class="fas fa-play mr-1"></i>Start';
-                setStatus('spring-status', 'idle', 'Paused');
-            }
-        },
-
-        reset: function() {
-            this.state = this.createDefaultState();
-            document.getElementById('spring-toggle').innerHTML = '<i class="fas fa-play mr-1"></i>Start';
-            setStatus('spring-status', 'idle', 'Ready');
-            this.updateData(); this.draw(); this.drawGraph(); this.updateAI();
-        },
-
-        update: function(dt) {
-            if (!this.state.running) return;
-            var s = this.state, p = this.params, steps = 8, subDt = dt / steps;
-            for (var i = 0; i < steps; i++) {
-                var f = function(x, v) { return { dx: v, dv: -(p.k / p.m) * x - (p.b / p.m) * v }; };
-                var k1 = f(s.x, s.v);
-                var k2 = f(s.x + k1.dx * subDt / 2, s.v + k1.dv * subDt / 2);
-                var k3 = f(s.x + k2.dx * subDt / 2, s.v + k2.dv * subDt / 2);
-                var k4 = f(s.x + k3.dx * subDt, s.v + k3.dv * subDt);
-                s.x += (k1.dx + 2 * k2.dx + 2 * k3.dx + k4.dx) * subDt / 6;
-                s.v += (k1.dv + 2 * k2.dv + 2 * k3.dv + k4.dv) * subDt / 6;
-                s.t += subDt;
-            }
-            s.history.push({ t: s.t, x: s.x });
-            if (s.history.length > 500) s.history.shift();
-            this.updateData();
-        },
-
-        updateData: function() {
-            var s = this.state, p = this.params;
-            var acc = -(p.k / p.m) * s.x - (p.b / p.m) * s.v;
-            var T = 2 * Math.PI * Math.sqrt(p.m / p.k);
-            document.getElementById('spring-disp').textContent = fmt(s.x) + ' m';
-            document.getElementById('spring-vel').textContent = fmt(s.v) + ' m/s';
-            document.getElementById('spring-acc').textContent = fmt(acc) + ' m/s²';
-            document.getElementById('spring-period').textContent = fmt(T, 3) + ' s';
-            document.getElementById('spring-freq').textContent = fmt(1 / T, 3) + ' Hz';
-        },
-
-        drawSpringCoil: function(ctx, x1, y, x2, coils, amp) {
-            var len = x2 - x1;
-            if (len < 20) { ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke(); return; }
-            var straight = 10;
-            var coilLen = Math.max(1, len - 2 * straight);
-            var segLen = coilLen / (coils * 2);
-            ctx.beginPath();
-            ctx.moveTo(x1, y);
-            ctx.lineTo(x1 + straight, y);
-            for (var i = 0; i < coils * 2; i++) {
-                ctx.lineTo(x1 + straight + (i + 1) * segLen, y + (i % 2 === 0 ? -amp : amp));
-            }
-            ctx.lineTo(x2 - straight, y);
-            ctx.lineTo(x2, y);
-            ctx.stroke();
-        },
-
-        draw: function() {
-            if (!this.ctx || this.W < 20 || this.H < 20) return;
-            var ctx = this.ctx, W = this.W, H = this.H, sc = this.scale, p = this.params, s = this.state;
-            var eqX = this.eqX, cy = H / 2;
-            ctx.clearRect(0, 0, W, H);
-
-            /* Wall */
-            ctx.fillStyle = '#1a2332';
-            ctx.fillRect(15, cy - 50, 12, 100);
-            for (var i = 0; i < 8; i++) {
-                ctx.beginPath();
-                ctx.moveTo(15, cy - 45 + i * 12);
-                ctx.lineTo(5, cy - 35 + i * 12);
-                ctx.strokeStyle = '#2a3a4e';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-            }
-
-            /* Equilibrium line */
-            ctx.beginPath();
-            ctx.moveTo(eqX, cy - 50);
-            ctx.lineTo(eqX, cy + 50);
-            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([3, 3]);
-            ctx.stroke();
-            ctx.setLineDash([]);
-            ctx.fillStyle = '#3a4555';
-            ctx.font = '10px JetBrains Mono';
-            ctx.textAlign = 'center';
-            ctx.fillText('x=0', eqX, cy + 65);
-            ctx.textAlign = 'start';
-
-            var massX = eqX + s.x * sc;
-            var blockW = 50, blockH = 50;
-
-            /* Spring */
-            ctx.beginPath();
-            ctx.strokeStyle = '#8b949e';
-            ctx.lineWidth = 2;
-            this.drawSpringCoil(ctx, 27, cy, massX - blockW / 2, 14, 14);
-
-            /* Block */
-            roundedRect(ctx, massX - blockW / 2, cy - blockH / 2, blockW, blockH, 6);
-            ctx.fillStyle = '#141c28';
-            ctx.fill();
-            ctx.strokeStyle = '#ff6b35';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.fillStyle = '#ff6b35';
-            ctx.font = 'bold 11px JetBrains Mono';
-            ctx.textAlign = 'center';
-            ctx.fillText(p.m + 'kg', massX, cy + 4);
-            ctx.textAlign = 'start';
-
-            /* Displacement arrow */
-            if (Math.abs(s.x) > 0.03) {
-                var arrowY = cy + blockH / 2 + 18;
-                ctx.beginPath();
-                ctx.moveTo(eqX, arrowY);
-                ctx.lineTo(massX, arrowY);
-                ctx.strokeStyle = '#00ff88';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                var dir = s.x > 0 ? 1 : -1;
-                ctx.beginPath();
-                ctx.moveTo(massX, arrowY);
-                ctx.lineTo(massX - dir * 8, arrowY - 4);
-                ctx.lineTo(massX - dir * 8, arrowY + 4);
-                ctx.closePath();
-                ctx.fillStyle = '#00ff88';
-                ctx.fill();
-                ctx.font = '11px JetBrains Mono';
-                ctx.textAlign = 'center';
-                ctx.fillText(fmt(s.x) + 'm', (eqX + massX) / 2, arrowY + 15);
-                ctx.textAlign = 'start';
-            }
-
-            /* Floor */
-            ctx.beginPath();
-            ctx.moveTo(15, cy + blockH / 2 + 2);
-            ctx.lineTo(W - 10, cy + blockH / 2 + 2);
-            ctx.strokeStyle = '#1a2332';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-        },
-
-        drawGraph: function() {
-            if (!this.gctx || this.gW < 20 || this.gH < 20) return;
-            var ctx = this.gctx, W = this.gW, H = this.gH, hist = this.state.history;
-            ctx.clearRect(0, 0, W, H);
-            ctx.fillStyle = '#080b12';
-            ctx.fillRect(0, 0, W, H);
-
-            ctx.beginPath();
-            ctx.moveTo(40, H / 2);
-            ctx.lineTo(W - 10, H / 2);
-            ctx.strokeStyle = 'rgba(255,255,255,0.07)';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-
-            ctx.fillStyle = '#3a4555';
-            ctx.font = '9px JetBrains Mono';
-            ctx.fillText('x(t)', 5, H / 2 - 5);
-            ctx.fillText('t →', W - 30, H / 2 + 15);
-
-            if (hist.length < 2) return;
-            var maxT = Math.max(hist[hist.length - 1].t, 3);
-            var maxX = Math.max(this.params.amp * 1.3, 0.5);
-            var plotW = W - 50, plotH = H - 20;
-            var ox = 40, oy = H / 2;
-
-            /* Glow */
-            ctx.beginPath();
-            for (var i = 0; i < hist.length; i++) {
-                var px = ox + (hist[i].t / maxT) * plotW;
-                var py = oy - (hist[i].x / maxX) * (plotH / 2);
-                if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-            }
-            ctx.strokeStyle = 'rgba(0,255,136,0.15)';
-            ctx.lineWidth = 5;
-            ctx.stroke();
-
-            /* Line */
-            ctx.beginPath();
-            for (var i = 0; i < hist.length; i++) {
-                var px = ox + (hist[i].t / maxT) * plotW;
-                var py = oy - (hist[i].x / maxX) * (plotH / 2);
-                if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-            }
-            ctx.strokeStyle = '#00ff88';
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-        },
-
-        updateAI: function() {
-            var p = this.params;
-            var T = 2 * Math.PI * Math.sqrt(p.m / p.k);
-            var omega = Math.sqrt(p.k / p.m);
-            var el = document.getElementById('spring-ai-text');
-            if (p.b > 0.01) {
-                var gamma = p.b / (2 * p.m);
-                var ratio = gamma / omega;
-                var regime = ratio < 1 ? 'underdamped' : (Math.abs(ratio - 1) < 0.05 ? 'critically damped' : 'overdamped');
-                el.innerHTML = 'Damped SHM: <span class="eq">γ = ' + fmt(gamma, 3) + '</span><br>γ/ω₀ = <span class="val">' + fmt(ratio, 3) + '</span> → <span class="val">' + regime + '</span><div class="insight">' + (regime === 'underdamped' ? 'Oscillates with decaying envelope.' : regime === 'critically damped' ? 'Fastest return without oscillation.' : 'No oscillation, slow exponential return.') + '</div>';
-            } else {
-                el.innerHTML = '<span class="eq">x(t) = A·cos(ωt)</span><br>ω = <span class="val">' + fmt(omega, 3) + ' rad/s</span> | T = <span class="val">' + fmt(T, 3) + ' s</span><br>E = ½kA² = <span class="val">' + fmt(0.5 * p.k * p.amp * p.amp) + ' J</span><div class="insight">Energy oscillates between kinetic and potential. Total energy is constant — verify on the graph: amplitude stays constant.</div>';
-            }
-        }
-    };
-
-    function springSetParam() { spring.setParam(); }
-    function springToggle() { spring.toggle(); }
-    function springReset() { spring.reset(); }
-    function springAIOptimize() {
-        animateSliders([
-            { id:'spring-k', val:40 }, { id:'spring-m', val:1 }, { id:'spring-a', val:1.0 }, { id:'spring-b', val:0.5 }
-        ], function() { spring.setParam(); showToast('AI: Underdamped oscillation configured', 'success'); });
-    }
-
-    /* ==================== COLLISION ==================== */
-    var coll = {
-        canvas: null, ctx: null, W: 0, H: 0,
-        params: { m1: 2, m2: 3, v1: 4, v2: -2, e: 1 },
-        state: null,
-        scale: 30, trackY: 0,
-
-        createDefaultState: function() {
-            var p = this.params;
-            return {
-                x1: -5, x2: 5,
-                v1cur: p.v1, v2cur: p.v2,
-                running: false, collided: false, flash: 0,
-                preP: p.m1 * p.v1 + p.m2 * p.v2,
-                preKE: 0.5 * p.m1 * p.v1 * p.v1 + 0.5 * p.m2 * p.v2 * p.v2
-            };
-        },
-
-        init: function() {
-            this.canvas = document.getElementById('coll-canvas');
-            var info = fitCanvas(this.canvas);
-            this.ctx = info.ctx; this.W = info.w; this.H = info.h;
-            this.trackY = this.H / 2;
-            this.scale = Math.max(5, Math.min(30, (this.W - 100) / 25));
-            if (!this.state) this.state = this.createDefaultState();
-            this.updatePreData();
-            this.draw();
-        },
-
-        setParam: function() {
-            this.params.m1 = parseFloat(document.getElementById('coll-m1').value);
-            this.params.m2 = parseFloat(document.getElementById('coll-m2').value);
-            this.params.v1 = parseFloat(document.getElementById('coll-v1').value);
-            this.params.v2 = parseFloat(document.getElementById('coll-v2').value);
-            this.params.e = parseFloat(document.getElementById('coll-e').value);
-            document.getElementById('coll-m1-val').textContent = this.params.m1.toFixed(1) + ' kg';
-            document.getElementById('coll-m2-val').textContent = this.params.m2.toFixed(1) + ' kg';
-            document.getElementById('coll-v1-val').textContent = this.params.v1.toFixed(1) + ' m/s';
-            document.getElementById('coll-v2-val').textContent = this.params.v2.toFixed(1) + ' m/s';
-            document.getElementById('coll-e-val').textContent = this.params.e.toFixed(2);
-            if (!this.state.running) {
-                this.state = this.createDefaultState();
-                this.updatePreData(); this.draw();
-            }
-            this.updateAI('idle');
-        },
-
-        start: function() {
-            if (this.state.running) return;
-            this.state = this.createDefaultState();
-            this.state.running = true;
-            document.getElementById('coll-start').innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Running...';
-            setStatus('coll-status', 'running', 'Simulating');
-            this.updatePreData();
-            showToast('Collision simulation started', 'success');
-            this.updateAI('running');
-        },
-
-        reset: function() {
-            this.state = this.createDefaultState();
-            document.getElementById('coll-start').innerHTML = '<i class="fas fa-play mr-1"></i>Collide';
-            setStatus('coll-status', 'idle', 'Ready');
-            ['coll-p-after','coll-ke-after','coll-ke-pct'].forEach(function(id) { document.getElementById(id).textContent = '—'; });
-            this.updatePreData(); this.draw(); this.updateAI('idle');
-        },
-
-        updatePreData: function() {
-            var p = this.params;
-            document.getElementById('coll-p-before').textContent = fmt(p.m1 * p.v1 + p.m2 * p.v2) + ' kg·m/s';
-            document.getElementById('coll-ke-before').textContent = fmt(0.5 * p.m1 * p.v1 * p.v1 + 0.5 * p.m2 * p.v2 * p.v2) + ' J';
-        },
-
-        update: function(dt) {
-            if (!this.state.running) return;
-            var s = this.state, p = this.params, sc = this.scale;
-            s.x1 += s.v1cur * dt;
-            s.x2 += s.v2cur * dt;
-
-            var r1px = Math.sqrt(p.m1) * 12;
-            var r2px = Math.sqrt(p.m2) * 12;
-            var r1m = r1px / sc;
-            var r2m = r2px / sc;
-
-            if (!s.collided && (s.x2 - s.x1) <= (r1m + r2m)) {
-                s.collided = true;
-                s.flash = 1;
-                var m1 = p.m1, m2 = p.m2, u1 = s.v1cur, u2 = s.v2cur, e = p.e;
-                s.v1cur = (m1 * u1 + m2 * u2 + m2 * e * (u2 - u1)) / (m1 + m2);
-                s.v2cur = (m1 * u1 + m2 * u2 + m1 * e * (u1 - u2)) / (m1 + m2);
-                var overlap = (r1m + r2m) - (s.x2 - s.x1);
-                if (overlap > 0) { s.x1 -= overlap / 2; s.x2 += overlap / 2; }
-
-                var pAfter = m1 * s.v1cur + m2 * s.v2cur;
-                var keAfter = 0.5 * m1 * s.v1cur * s.v1cur + 0.5 * m2 * s.v2cur * s.v2cur;
-                var kePct = s.preKE > 0 ? (keAfter / s.preKE * 100) : 100;
-                document.getElementById('coll-p-after').textContent = fmt(pAfter) + ' kg·m/s';
-                document.getElementById('coll-ke-after').textContent = fmt(keAfter) + ' J';
-                document.getElementById('coll-ke-pct').textContent = fmt(kePct, 1) + '%';
-                document.getElementById('coll-ke-pct').style.color = kePct > 99 ? '#00ff88' : (kePct > 50 ? '#ff6b35' : '#ff4757');
-                document.getElementById('coll-start').innerHTML = '<i class="fas fa-play mr-1"></i>Collide';
-                setStatus('coll-status', 'done', 'Collision Done');
-                this.updateAI('collided');
-                showToast('KE conserved: ' + fmt(kePct, 1) + '%', kePct > 99 ? 'success' : 'warn');
-                setTimeout(function() { s.running = false; }, 2500);
-            }
-
-            if (s.flash > 0) s.flash -= dt * 2.5;
-            if (Math.abs(s.x1) > 18 && Math.abs(s.x2) > 18) {
-                s.running = false;
-                document.getElementById('coll-start').innerHTML = '<i class="fas fa-play mr-1"></i>Collide';
-            }
-        },
-
-        draw: function() {
-            if (!this.ctx || this.W < 20 || this.H < 20) return;
-            var ctx = this.ctx, W = this.W, H = this.H, sc = this.scale, p = this.params, s = this.state;
-            var cx = W / 2, ty = this.trackY;
-            ctx.clearRect(0, 0, W, H);
-
-            /* Track */
-            ctx.beginPath();
-            ctx.moveTo(20, ty);
-            ctx.lineTo(W - 20, ty);
-            ctx.strokeStyle = '#1a2332';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            /* Track marks */
-            for (var m = -10; m <= 10; m++) {
-                var px = cx + m * sc;
-                if (px < 25 || px > W - 25) continue;
-                ctx.beginPath();
-                ctx.moveTo(px, ty - 4);
-                ctx.lineTo(px, ty + 4);
-                ctx.strokeStyle = '#2a3a4e';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-                if (m % 2 === 0) {
-                    ctx.fillStyle = '#3a4555';
-                    ctx.font = '9px JetBrains Mono';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(m + 'm', px, ty + 18);
-                }
-            }
-            ctx.textAlign = 'start';
-
-            var r1 = Math.sqrt(p.m1) * 12;
-            var r2 = Math.sqrt(p.m2) * 12;
-            var b1x = cx + s.x1 * sc;
-            var b2x = cx + s.x2 * sc;
-
-            /* Flash */
-            if (s.flash > 0) {
-                var midX = (b1x + b2x) / 2;
-                var grad = ctx.createRadialGradient(midX, ty, 0, midX, ty, 70);
-                grad.addColorStop(0, 'rgba(255,255,255,' + (s.flash * 0.5) + ')');
-                grad.addColorStop(0.4, 'rgba(0,255,136,' + (s.flash * 0.25) + ')');
-                grad.addColorStop(1, 'rgba(0,255,136,0)');
-                ctx.fillStyle = grad;
-                ctx.fillRect(midX - 70, ty - 70, 140, 140);
-            }
-
-            /* Velocity arrows */
-            function drawArrow(x, y, vel, color) {
-                if (Math.abs(vel) < 0.1) return;
-                var len = vel * 7;
-                ctx.beginPath();
-                ctx.moveTo(x, y - 30);
-                ctx.lineTo(x + len, y - 30);
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 2.5;
-                ctx.stroke();
-                var dir = vel > 0 ? 1 : -1;
-                ctx.beginPath();
-                ctx.moveTo(x + len, y - 30);
-                ctx.lineTo(x + len - dir * 8, y - 34);
-                ctx.lineTo(x + len - dir * 8, y - 26);
-                ctx.closePath();
-                ctx.fillStyle = color;
-                ctx.fill();
-                ctx.font = '10px JetBrains Mono';
-                ctx.textAlign = 'center';
-                ctx.fillText(fmt(vel, 1) + ' m/s', x + len / 2, y - 42);
-                ctx.textAlign = 'start';
-            }
-            drawArrow(b1x, ty, s.v1cur, '#00ff88');
-            drawArrow(b2x, ty, s.v2cur, '#00b4d8');
-
-            /* Ball A */
-            ctx.beginPath();
-            ctx.arc(b1x, ty, r1, 0, Math.PI * 2);
-            var g1 = ctx.createRadialGradient(b1x - 3, ty - 3, 2, b1x, ty, r1);
-            g1.addColorStop(0, '#88ffcc');
-            g1.addColorStop(1, '#00aa55');
-            ctx.fillStyle = g1;
-            ctx.shadowColor = '#00ff88';
-            ctx.shadowBlur = 12;
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = '#06080d';
-            ctx.font = 'bold ' + Math.max(9, r1 * 0.65) + 'px JetBrains Mono';
-            ctx.textAlign = 'center';
-            ctx.fillText('A', b1x, ty + 4);
-
-            /* Ball B */
-            ctx.beginPath();
-            ctx.arc(b2x, ty, r2, 0, Math.PI * 2);
-            var g2 = ctx.createRadialGradient(b2x - 3, ty - 3, 2, b2x, ty, r2);
-            g2.addColorStop(0, '#88eeff');
-            g2.addColorStop(1, '#007799');
-            ctx.fillStyle = g2;
-            ctx.shadowColor = '#00b4d8';
-            ctx.shadowBlur = 12;
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = '#06080d';
-            ctx.font = 'bold ' + Math.max(9, r2 * 0.65) + 'px JetBrains Mono';
-            ctx.fillText('B', b2x, ty + 4);
-            ctx.textAlign = 'start';
-
-            /* Mass labels */
-            ctx.fillStyle = '#8b949e';
-            ctx.font = '10px JetBrains Mono';
-            ctx.textAlign = 'center';
-            ctx.fillText(p.m1 + 'kg', b1x, ty + r1 + 16);
-            ctx.fillText(p.m2 + 'kg', b2x, ty + r2 + 16);
-            ctx.textAlign = 'start';
-
-            /* Elasticity label */
-            ctx.fillStyle = '#3a4555';
-            ctx.font = '10px JetBrains Mono';
-            ctx.textAlign = 'right';
-            ctx.fillText('e = ' + p.e.toFixed(2) + (p.e === 1 ? ' (Elastic)' : p.e === 0 ? ' (Inelastic)' : ' (Partial)'), W - 20, 20);
-            ctx.textAlign = 'start';
-        },
-
-        updateAI: function(mode) {
-            var p = this.params, s = this.state;
-            var pBefore = p.m1 * p.v1 + p.m2 * p.v2;
-            var keBefore = 0.5 * p.m1 * p.v1 * p.v1 + 0.5 * p.m2 * p.v2 * p.v2;
-            var el = document.getElementById('coll-ai-text');
-            if (mode === 'idle') {
-                var v1f = (p.m1*p.v1 + p.m2*p.v2 + p.m2*p.e*(p.v2-p.v1)) / (p.m1+p.m2);
-                var v2f = (p.m1*p.v1 + p.m2*p.v2 + p.m1*p.e*(p.v1-p.v2)) / (p.m1+p.m2);
-                var keAfter = 0.5*p.m1*v1f*v1f + 0.5*p.m2*v2f*v2f;
-                el.innerHTML = 'Predicted: v₁\'=<span class="val">' + fmt(v1f,2) + '</span> v₂\'=<span class="val">' + fmt(v2f,2) + '</span> m/s<br>p = <span class="eq">' + fmt(pBefore) + ' kg·m/s</span> (always conserved)<br>KE retention: <span class="val">' + fmt(keAfter/keBefore*100,1) + '%</span><div class="insight">' + (p.e === 1 ? 'Elastic: KE fully conserved. ' + (Math.abs(p.m1-p.m2) < 0.1 ? 'Equal masses → velocities swap!' : 'Heavier ball dominates post-collision.') : 'KE loss = ' + fmt(keBefore-keAfter,2) + ' J converts to heat/deformation.') + '</div>';
-            } else if (mode === 'running') {
-                el.innerHTML = 'Simulation running...<br>Initial p = <span class="val">' + fmt(pBefore) + ' kg·m/s</span><div class="insight">Watch for the velocity arrow changes at impact. Momentum is conserved regardless of elasticity.</div>';
-            } else if (mode === 'collided') {
-                var pAfter = p.m1 * s.v1cur + p.m2 * s.v2cur;
-                var keAfter = 0.5*p.m1*s.v1cur*s.v1cur + 0.5*p.m2*s.v2cur*s.v2cur;
-                el.innerHTML = 'v₁\'=<span class="val">' + fmt(s.v1cur,2) + '</span> v₂\'=<span class="val">' + fmt(s.v2cur,2) + '</span> m/s<br>p after: <span class="eq">' + fmt(pAfter) + '</span> = before: <span class="val">' + fmt(pBefore) + '</span> <span style="color:#00ff88">✓</span><br>KE: <span class="val">' + fmt(keAfter) + ' J</span> (' + fmt(keAfter/keBefore*100,1) + '%)<div class="insight">Momentum conservation verified. ' + (p.e === 1 ? 'Elastic collision confirmed — KE also conserved.' : fmt(keBefore-keAfter,2) + ' J lost to deformation.') + '</div>';
-            }
-        }
-    };
-
-    function collSetParam() { coll.setParam(); }
-    function collStart() { coll.start(); }
-    function collReset() { coll.reset(); }
-    function collAIOptimize() {
-        animateSliders([
-            { id:'coll-m1', val:2 }, { id:'coll-m2', val:2 }, { id:'coll-v1', val:5 }, { id:'coll-v2', val:-5 }, { id:'coll-e', val:1 }
-        ], function() { coll.setParam(); showToast('AI: Equal-mass elastic → velocities swap!', 'success'); });
-    }
-
-    /* ==================== MAIN LOOP — NO VISIBILITY GATING ==================== */
-    var lastTime = 0;
-    var initialized = false;
-
-    function mainLoop(timestamp) {
-        if (!initialized) { lastTime = timestamp; initialized = true; }
-        var dt = Math.min((timestamp - lastTime) / 1000, 0.05);
-        if (dt <= 0) dt = 0.016;
-        lastTime = timestamp;
-
-        /* Always update ALL simulations — no visibility check */
-        proj.update(dt);
-        proj.draw();
-
-        pend.update(dt);
-        pend.draw();
-
-        spring.update(dt);
-        spring.draw();
-        spring.drawGraph();
-
-        coll.update(dt);
-        coll.draw();
-
-        requestAnimationFrame(mainLoop);
-    }
-
-    /* ==================== INIT — WAIT FOR LAYOUT ==================== */
-    function initAll() {
-        /* Small delay to ensure Tailwind CSS has laid out the page */
-        setTimeout(function() {
-            heroParticles.init();
-            heroParticles.draw();
-
-            proj.init();
-            pend.init();
-            spring.init();
-            coll.init();
-
-            proj.updateAI('idle');
-            pend.updateAI();
-            spring.updateAI();
-            coll.updateAI('idle');
-            coll.updatePreData();
-
-            requestAnimationFrame(mainLoop);
-        }, 150);
-    }
-
-    /* Use 'load' instead of 'DOMContentLoaded' to ensure all resources (Tailwind CDN) are ready */
-    if (document.readyState === 'complete') {
-        initAll();
+        ctx.arc(midX, midY, 40, Math.PI / 2 - thetaR, Math.PI / 2, false);
+        ctx.strokeStyle = '#2dd4bf';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        // Label
+        const lrAng = Math.PI / 2 - thetaR / 2;
+        ctx.fillStyle = '#2dd4bf';
+        ctx.font = '500 12px JetBrains Mono';
+        ctx.textAlign = 'center';
+        ctx.fillText('θr=' + (thetaR * 180 / Math.PI).toFixed(1) + '°', midX + 58 * Math.cos(lrAng), midY + 58 * Math.sin(lrAng));
+        document.getElementById('refRefrAngle').textContent = (thetaR * 180 / Math.PI).toFixed(1) + '°';
+        tirCard.style.display = 'none';
     } else {
-        window.addEventListener('load', initAll);
+        // TIR - no refracted ray, draw glow at interface
+        ctx.beginPath();
+        ctx.arc(midX, midY, 8, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(239,68,68,0.6)';
+        ctx.fill();
+        document.getElementById('refRefrAngle').textContent = 'TIR';
+        tirCard.style.display = 'block';
     }
 
-    /* Handle resize — reinit canvases */
-    var resizeTimer;
-    window.addEventListener('resize', function() {
-        clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(function() {
-            proj.init();
-            pend.init();
-            spring.init();
-            coll.init();
-        }, 200);
+    // Angle arc for incidence
+    ctx.beginPath();
+    ctx.arc(midX, midY, 40, -(Math.PI / 2 - thetaI), -Math.PI / 2, false);
+    ctx.strokeStyle = '#f0a030';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    const liAng = -(Math.PI / 2 - thetaI / 2);
+    ctx.fillStyle = '#f0a030';
+    ctx.font = '500 12px JetBrains Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText('θi=' + (thetaI * 180 / Math.PI).toFixed(0) + '°', midX + 58 * Math.cos(liAng), midY + 58 * Math.sin(liAng));
+
+    // Angle arc for reflection
+    ctx.beginPath();
+    ctx.arc(midX, midY, 40, -Math.PI / 2, -Math.PI / 2 + thetaI, false);
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    const lr2Ang = -Math.PI / 2 + thetaI / 2;
+    ctx.fillStyle = '#ef4444';
+    ctx.fillText('θr=' + (thetaI * 180 / Math.PI).toFixed(0) + '°', midX + 58 * Math.cos(lr2Ang), midY + 58 * Math.sin(lr2Ang));
+
+    // Update info
+    document.getElementById('refReflAngle').textContent = (thetaI * 180 / Math.PI).toFixed(0) + '°';
+    document.getElementById('refSnell').textContent = n1.toFixed(2) + '×sin(' + (thetaI*180/Math.PI).toFixed(0) + '°) = ' + n2.toFixed(2) + '×sin(θr)';
+
+    // Critical angle
+    if (n1 > n2) {
+        const critAng = Math.asin(n2 / n1) * 180 / Math.PI;
+        document.getElementById('refCritAngle').textContent = critAng.toFixed(1) + '°';
+    } else {
+        document.getElementById('refCritAngle').textContent = '—';
+    }
+
+    // Ray labels
+    ctx.font = '600 11px Space Grotesk';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#f0a030';
+    ctx.fillText('Incident', ix + 30, iy - 10);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillText('Reflected', rx - 30, ry - 10);
+    if (!isTIR) {
+        const thetaR2 = Math.asin(sinThetaR);
+        const fx2 = midX + rayLen * Math.sin(thetaR2);
+        const fy2 = midY + rayLen * Math.cos(thetaR2);
+        ctx.fillStyle = '#2dd4bf';
+        ctx.fillText('Refracted', fx2 + 10, fy2 - 8);
+    }
+
+    // Normal label
+    ctx.save();
+    ctx.translate(midX + 8, 50);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '500 11px Space Grotesk';
+    ctx.textAlign = 'center';
+    ctx.fillText('Normal', 0, 0);
+    ctx.restore();
+}
+
+/* ============================================================
+   INELASTIC COLLISION
+   ============================================================ */
+let inState = { running: false, t: 0, collided: false, ax: 100, bx: 500, av: 0, bv: 0, fav: 0, fbv: 0 };
+
+function resetInelastic() {
+    if (animId) { cancelAnimationFrame(animId); animId = null; }
+    const mA = parseFloat(document.getElementById('inMassA').value);
+    const mB = parseFloat(document.getElementById('inMassB').value);
+    const vA = parseFloat(document.getElementById('inVelA').value);
+    const vB = parseFloat(document.getElementById('inVelB').value);
+    inState = { running: false, t: 0, collided: false, ax: 150, bx: 500, av: 0, bv: 0, fav: 0, fbv: 0, mA: mA, mB: mB, vA: vA, vB: vB, rA: 20 + mA * 2, rB: 20 + mB * 2 };
+    document.getElementById('inVelBarA').style.width = '0%';
+    document.getElementById('inVelBarB').style.width = '0%';
+    document.getElementById('inEnergyLost').textContent = '0 J';
+    drawInelastic();
+}
+
+function startInelastic() {
+    if (inState.running) return;
+    resetInelastic();
+    inState.av = inState.vA * 15; // pixels per second
+    inState.bv = inState.vB * 15;
+    inState.running = true;
+    animLoopInelastic();
+}
+
+function animLoopInelastic() {
+    if (!inState.running || activeCat !== 'inelastic') return;
+    const dt = 1 / 60;
+    if (!inState.collided) {
+        inState.ax += inState.av * dt;
+        inState.bx += inState.bv * dt;
+        const dist = Math.abs(inState.bx - inState.ax);
+        const minDist = inState.rA + inState.rB;
+        if (dist <= minDist) {
+            inState.collided = true;
+            // Calculate post-collision velocities
+            const e = parseFloat(document.getElementById('inE').value);
+            const mA = inState.mA, mB = inState.mB;
+            const uA = inState.vA, uB = inState.vB;
+            inState.fav = ((mA * uA + mB * uB) + mB * e * (uB - uA)) / (mA + mB);
+            inState.fbv = ((mA * uA + mB * uB) + mA * e * (uA - uB)) / (mA + mB);
+            inState.av = inState.fav * 15;
+            inState.bv = inState.fbv * 15;
+            // Snap positions
+            const overlap = minDist - dist;
+            if (overlap > 0) {
+                inState.ax -= overlap / 2;
+                inState.bx += overlap / 2;
+            }
+            // Update velocity bars
+            const maxV = 10;
+            document.getElementById('inVelBarA').style.width = clamp(Math.abs(inState.fav) / maxV * 100, 0, 100) + '%';
+            document.getElementById('inVelBarB').style.width = clamp(Math.abs(inState.fbv) / maxV * 100, 0, 100) + '%';
+            // Energy lost
+            const keBefore = 0.5 * mA * uA * uA + 0.5 * mB * uB * uB;
+            const keAfter = 0.5 * mA * inState.fav * inState.fav + 0.5 * mB * inState.fbv * inState.fbv;
+            document.getElementById('inEnergyLost').textContent = (keBefore - keAfter).toFixed(2) + ' J';
+        }
+    } else {
+        inState.ax += inState.av * dt;
+        inState.bx += inState.bv * dt;
+    }
+    drawInelastic();
+    if (inState.ax > -100 && inState.ax < 800 && inState.bx > -100 && inState.bx < 800) {
+        animId = requestAnimationFrame(animLoopInelastic);
+    }
+}
+
+function drawInelastic() {
+    const cv = document.getElementById('cvInelastic');
+    const ctx = cv.getContext('2d');
+    const W = cv.width, H = cv.height;
+    ctx.clearRect(0, 0, W, H);
+    const trackY = H / 2;
+
+    // Track
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(30, trackY + 35);
+    ctx.lineTo(W - 30, trackY + 35);
+    ctx.stroke();
+
+    // Track marks
+    for (let i = 0; i <= 13; i++) {
+        const x = 30 + i * 50;
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, trackY + 30);
+        ctx.lineTo(x, trackY + 40);
+        ctx.stroke();
+    }
+
+    // Ball A
+    const rA = inState.rA || 30;
+    ctx.beginPath();
+    ctx.arc(inState.ax, trackY, rA, 0, Math.PI * 2);
+    const gradA = ctx.createRadialGradient(inState.ax - rA * 0.3, trackY - rA * 0.3, rA * 0.1, inState.ax, trackY, rA);
+    gradA.addColorStop(0, '#f0a030');
+    gradA.addColorStop(1, '#92400e');
+    ctx.fillStyle = gradA;
+    ctx.fill();
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#0a0e17';
+    ctx.font = '700 ' + Math.max(11, rA * 0.6) + 'px Space Grotesk';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('A', inState.ax, trackY);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '500 11px Space Grotesk';
+    ctx.textBaseline = 'top';
+    ctx.fillText(inState.mA + ' kg', inState.ax, trackY + rA + 6);
+
+    // Velocity arrow A
+    if (Math.abs(inState.av) > 0.5) {
+        drawArrow(ctx, inState.ax, trackY - rA - 15, inState.ax + inState.av * 0.6, trackY - rA - 15, '#f0a030', 2);
+    }
+
+    // Ball B
+    const rB = inState.rB || 26;
+    ctx.beginPath();
+    ctx.arc(inState.bx, trackY, rB, 0, Math.PI * 2);
+    const gradB = ctx.createRadialGradient(inState.bx - rB * 0.3, trackY - rB * 0.3, rB * 0.1, inState.bx, trackY, rB);
+    gradB.addColorStop(0, '#2dd4bf');
+    gradB.addColorStop(1, '#065f46');
+    ctx.fillStyle = gradB;
+    ctx.fill();
+    ctx.strokeStyle = '#5eead4';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#0a0e17';
+    ctx.font = '700 ' + Math.max(11, rB * 0.6) + 'px Space Grotesk';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('B', inState.bx, trackY);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '500 11px Space Grotesk';
+    ctx.textBaseline = 'top';
+    ctx.fillText(inState.mB + ' kg', inState.bx, trackY + rB + 6);
+
+    // Velocity arrow B
+    if (Math.abs(inState.bv) > 0.5) {
+        drawArrow(ctx, inState.bx, trackY - rB - 15, inState.bx + inState.bv * 0.6, trackY - rB - 15, '#2dd4bf', 2);
+    }
+
+    // Collision flash
+    if (inState.collided && inState.t < 10) {
+        inState.t++;
+        const cx = (inState.ax + inState.bx) / 2;
+        ctx.beginPath();
+        ctx.arc(cx, trackY, 30 + inState.t * 3, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,255,255,' + (0.3 - inState.t * 0.03).toFixed(2) + ')';
+        ctx.fill();
+    }
+
+    // Title
+    ctx.fillStyle = '#4b5563';
+    ctx.font = '500 12px Space Grotesk';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('Inelastic Collision (e = ' + (document.getElementById('inE').value) + ')', 30, 16);
+}
+
+/* ============================================================
+   COMPLETELY INELASTIC COLLISION
+   ============================================================ */
+let ciState = { running: false, t: 0, collided: false, ax: 150, bx: 500, av: 0, bv: 0, fcv: 0 };
+
+function resetCInelastic() {
+    if (animId) { cancelAnimationFrame(animId); animId = null; }
+    const mA = parseFloat(document.getElementById('ciMassA').value);
+    const mB = parseFloat(document.getElementById('ciMassB').value);
+    const vA = parseFloat(document.getElementById('ciVelA').value);
+    const vB = parseFloat(document.getElementById('ciVelB').value);
+    ciState = { running: false, t: 0, collided: false, ax: 150, bx: 500, av: 0, bv: 0, fcv: 0, mA: mA, mB: mB, vA: vA, vB: vB, rA: 20 + mA * 2, rB: 20 + mB * 2 };
+    document.getElementById('ciVelBar').style.width = '0%';
+    document.getElementById('ciEnergyLost').textContent = '0 J';
+    document.getElementById('ciMomentum').textContent = '—';
+    drawCInelastic();
+}
+
+function startCInelastic() {
+    if (ciState.running) return;
+    resetCInelastic();
+    ciState.av = ciState.vA * 15;
+    ciState.bv = ciState.vB * 15;
+    ciState.running = true;
+    animLoopCInelastic();
+}
+
+function animLoopCInelastic() {
+    if (!ciState.running || activeCat !== 'cinelastic') return;
+    const dt = 1 / 60;
+    if (!ciState.collided) {
+        ciState.ax += ciState.av * dt;
+        ciState.bx += ciState.bv * dt;
+        const dist = Math.abs(ciState.bx - ciState.ax);
+        const minDist = ciState.rA + ciState.rB;
+        if (dist <= minDist) {
+            ciState.collided = true;
+            const mA = ciState.mA, mB = ciState.mB;
+            ciState.fcv = (mA * ciState.vA + mB * ciState.vB) / (mA + mB);
+            ciState.av = ciState.fcv * 15;
+            ciState.bv = ciState.fcv * 15;
+            const overlap = minDist - dist;
+            if (overlap > 0) { ciState.ax -= overlap / 2; ciState.bx += overlap / 2; }
+            // Combined position
+            ciState.combX = (ciState.ax * mA + ciState.bx * mB) / (mA + mB);
+            const maxV = 10;
+            document.getElementById('ciVelBar').style.width = clamp(Math.abs(ciState.fcv) / maxV * 100, 0, 100) + '%';
+            const keB = 0.5 * mA * ciState.vA * ciState.vA + 0.5 * mB * ciState.vB * ciState.vB;
+            const keA = 0.5 * (mA + mB) * ciState.fcv * ciState.fcv;
+            document.getElementById('ciEnergyLost').textContent = (keB - keA).toFixed(2) + ' J';
+            const pBefore = mA * ciState.vA + mB * ciState.vB;
+            const pAfter = (mA + mB) * ciState.fcv;
+            document.getElementById('ciMomentum').textContent = 'Yes (Δp=' + Math.abs(pBefore - pAfter).toFixed(4) + ')';
+        }
+    } else {
+        ciState.combX += ciState.av * dt;
+        ciState.ax = ciState.combX - 10;
+        ciState.bx = ciState.combX + 10;
+    }
+    drawCInelastic();
+    if (ciState.ax > -100 && ciState.ax < 800 && ciState.bx > -100 && ciState.bx < 800) {
+        animId = requestAnimationFrame(animLoopCInelastic);
+    }
+}
+
+function drawCInelastic() {
+    const cv = document.getElementById('cvCInelastic');
+    const ctx = cv.getContext('2d');
+    const W = cv.width, H = cv.height;
+    ctx.clearRect(0, 0, W, H);
+    const trackY = H / 2;
+
+    // Track
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(30, trackY + 40);
+    ctx.lineTo(W - 30, trackY + 40);
+    ctx.stroke();
+
+    if (!ciState.collided) {
+        // Ball A
+        const rA = ciState.rA || 30;
+        ctx.beginPath();
+        ctx.arc(ciState.ax, trackY, rA, 0, Math.PI * 2);
+        let gA = ctx.createRadialGradient(ciState.ax - rA * 0.3, trackY - rA * 0.3, rA * 0.1, ciState.ax, trackY, rA);
+        gA.addColorStop(0, '#f0a030');
+        gA.addColorStop(1, '#92400e');
+        ctx.fillStyle = gA;
+        ctx.fill();
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#0a0e17';
+        ctx.font = '700 ' + Math.max(11, rA * 0.55) + 'px Space Grotesk';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('A', ciState.ax, trackY);
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = '500 11px Space Grotesk';
+        ctx.textBaseline = 'top';
+        ctx.fillText(ciState.mA + ' kg', ciState.ax, trackY + rA + 8);
+
+        if (Math.abs(ciState.av) > 0.5) drawArrow(ctx, ciState.ax, trackY - rA - 15, ciState.ax + ciState.av * 0.6, trackY - rA - 15, '#f0a030', 2);
+
+        // Ball B
+        const rB = ciState.rB || 26;
+        ctx.beginPath();
+        ctx.arc(ciState.bx, trackY, rB, 0, Math.PI * 2);
+        let gB = ctx.createRadialGradient(ciState.bx - rB * 0.3, trackY - rB * 0.3, rB * 0.1, ciState.bx, trackY, rB);
+        gB.addColorStop(0, '#2dd4bf');
+        gB.addColorStop(1, '#065f46');
+        ctx.fillStyle = gB;
+        ctx.fill();
+        ctx.strokeStyle = '#5eead4';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#0a0e17';
+        ctx.font = '700 ' + Math.max(11, rB * 0.55) + 'px Space Grotesk';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('B', ciState.bx, trackY);
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = '500 11px Space Grotesk';
+        ctx.textBaseline = 'top';
+        ctx.fillText(ciState.mB + ' kg', ciState.bx, trackY + rB + 8);
+
+        if (Math.abs(ciState.bv) > 0.5) drawArrow(ctx, ciState.bx, trackY - rB - 15, ciState.bx + ciState.bv * 0.6, trackY - rB - 15, '#2dd4bf', 2);
+    } else {
+        // Combined object
+        const cx = ciState.combX || (ciState.ax + ciState.bx) / 2;
+        const combinedR = Math.max(25, Math.sqrt(ciState.rA * ciState.rA + ciState.rB * ciState.rB) * 0.7);
+        // Glow
+        ctx.beginPath();
+        ctx.arc(cx, trackY, combinedR + 10, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(240,160,48,0.1)';
+        ctx.fill();
+        // Main body
+        ctx.beginPath();
+        ctx.arc(cx, trackY, combinedR, 0, Math.PI * 2);
+        let gC = ctx.createRadialGradient(cx - combinedR * 0.3, trackY - combinedR * 0.3, combinedR * 0.1, cx, trackY, combinedR);
+        gC.addColorStop(0, '#a78bfa');
+        gC.addColorStop(1, '#4c1d95');
+        ctx.fillStyle = gC;
+        ctx.fill();
+        ctx.strokeStyle = '#c4b5fd';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = '700 13px Space Grotesk';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('A+B', cx, trackY);
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = '500 11px Space Grotesk';
+        ctx.textBaseline = 'top';
+        ctx.fillText((ciState.mA + ciState.mB) + ' kg', cx, trackY + combinedR + 8);
+
+        if (Math.abs(ciState.av) > 0.5) drawArrow(ctx, cx, trackY - combinedR - 15, cx + ciState.av * 0.6, trackY - combinedR - 15, '#a78bfa', 2);
+
+        // Flash
+        if (ciState.t < 10) {
+            ciState.t++;
+            ctx.beginPath();
+            ctx.arc(cx, trackY, 30 + ciState.t * 4, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,255,' + (0.4 - ciState.t * 0.04).toFixed(2) + ')';
+            ctx.fill();
+        }
+    }
+
+    ctx.fillStyle = '#4b5563';
+    ctx.font = '500 12px Space Grotesk';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('Completely Inelastic (e = 0)', 30, 16);
+}
+
+/* ============================================================
+   RELATIVE MOTION
+   ============================================================ */
+let relState = { running: false, time: 0, ax: 100, bx: 600 };
+
+function resetRelative() {
+    if (animId) { cancelAnimationFrame(animId); animId = null; }
+    relState = { running: false, time: 0, ax: 100, bx: 600, vA: parseFloat(document.getElementById('relVelA').value), vB: parseFloat(document.getElementById('relVelB').value) };
+    document.getElementById('relVelBarAB').style.width = '0%';
+    document.getElementById('relVelBarBA').style.width = '0%';
+    drawRelative();
+}
+
+function startRelative() {
+    if (relState.running) return;
+    resetRelative();
+    relState.running = true;
+    animLoopRelative();
+}
+
+function animLoopRelative() {
+    if (!relState.running || activeCat !== 'relative') return;
+    const dt = 1 / 60;
+    relState.time += dt;
+    const frame = document.getElementById('relFrame').value;
+    const vA = relState.vA;
+    const vB = relState.vB;
+    let effA = vA, effB = vB;
+    if (frame === 'A') { effA = 0; effB = vB - vA; }
+    else if (frame === 'B') { effA = vA - vB; effB = 0; }
+    relState.ax += effA * 15 * dt;
+    relState.bx += effB * 15 * dt;
+    // Wrap around
+    if (relState.ax > 730) relState.ax = -30;
+    if (relState.ax < -30) relState.ax = 730;
+    if (relState.bx > 730) relState.bx = -30;
+    if (relState.bx < -30) relState.bx = 730;
+
+    // Update velocity bars
+    const vAB = vA - vB;
+    const vBA = vB - vA;
+    const maxV = 20;
+    document.getElementById('relVelBarAB').style.width = clamp(Math.abs(vAB) / maxV * 100, 0, 100) + '%';
+    document.getElementById('relVelBarBA').style.width = clamp(Math.abs(vBA) / maxV * 100, 0, 100) + '%';
+
+    drawRelative();
+    animId = requestAnimationFrame(animLoopRelative);
+}
+
+function drawRelative() {
+    const cv = document.getElementById('cvRelative');
+    const ctx = cv.getContext('2d');
+    const W = cv.width, H = cv.height;
+    ctx.clearRect(0, 0, W, H);
+    const trackA = H * 0.35;
+    const trackB = H * 0.65;
+
+    // Reference frame label
+    const frame = document.getElementById('relFrame').value;
+    const frameLabel = frame === 'ground' ? 'Ground Frame' : frame + "'s Frame";
+    ctx.fillStyle = '#f0a030';
+    ctx.font = '600 14px Space Grotesk';
+    ctx.textAlign = 'center';
+    ctx.fillText('Reference Frame: ' + frameLabel, W / 2, 28);
+
+    // Ground lines
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 14; i++) {
+        const x = i * 50;
+        ctx.beginPath(); ctx.moveTo(x, trackA + 25); ctx.lineTo(x, trackA + 35); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x, trackB + 25); ctx.lineTo(x, trackB + 35); ctx.stroke();
+    }
+
+    // Tracks
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, trackA + 30); ctx.lineTo(W, trackA + 30); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, trackB + 30); ctx.lineTo(W, trackB + 30); ctx.stroke();
+
+    // Track labels
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '500 12px Space Grotesk';
+    ctx.textAlign = 'left';
+    ctx.fillText('Object A', 10, trackA - 15);
+    ctx.fillText('Object B', 10, trackB - 15);
+
+    // Object A (car shape)
+    const ax = relState.ax;
+    ctx.fillStyle = '#f0a030';
+    ctx.beginPath();
+    ctx.roundRect(ax - 25, trackA - 8, 50, 16, 4);
+    ctx.fill();
+    // Wheels
+    ctx.fillStyle = '#374151';
+    ctx.beginPath(); ctx.arc(ax - 15, trackA + 10, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(ax + 15, trackA + 10, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#0a0e17';
+    ctx.font = '700 11px Space Grotesk';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('A', ax, trackA);
+
+    // Velocity arrow A
+    const vA = relState.vA;
+    let effA = vA;
+    if (frame === 'A') effA = 0;
+    else if (frame === 'B') effA = vA - relState.vB;
+    if (Math.abs(effA) > 0.1) drawArrow(ctx, ax, trackA - 22, ax + effA * 12, trackA - 22, '#f0a030', 2);
+
+    // Object B (car shape)
+    const bx = relState.bx;
+    ctx.fillStyle = '#2dd4bf';
+    ctx.beginPath();
+    ctx.roundRect(bx - 25, trackB - 8, 50, 16, 4);
+    ctx.fill();
+    ctx.fillStyle = '#374151';
+    ctx.beginPath(); ctx.arc(bx - 15, trackB + 10, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(bx + 15, trackB + 10, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#0a0e17';
+    ctx.font = '700 11px Space Grotesk';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('B', bx, trackB);
+
+    // Velocity arrow B
+    const vB = relState.vB;
+    let effB = vB;
+    if (frame === 'B') effB = 0;
+    else if (frame === 'A') effB = vB - vA;
+    if (Math.abs(effB) > 0.1) drawArrow(ctx, bx, trackB - 22, bx + effB * 12, trackB - 22, '#2dd4bf', 2);
+
+    // Time display
+    ctx.fillStyle = '#4b5563';
+    ctx.font = '500 12px JetBrains Mono';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'top';
+    ctx.fillText('t = ' + relState.time.toFixed(1) + 's', W - 20, 16);
+
+    // Direction indicators on ground
+    if (frame === 'ground') {
+        ctx.fillStyle = '#374151';
+        ctx.font = '400 10px Space Grotesk';
+        ctx.textAlign = 'center';
+        ctx.fillText('Ground (stationary)', W / 2, H - 16);
+    } else if (frame === 'A') {
+        ctx.fillStyle = '#f0a030';
+        ctx.font = '400 10px Space Grotesk';
+        ctx.textAlign = 'center';
+        ctx.fillText('A is stationary in this frame', W / 2, H - 16);
+    } else {
+        ctx.fillStyle = '#2dd4bf';
+        ctx.font = '400 10px Space Grotesk';
+        ctx.textAlign = 'center';
+        ctx.fillText('B is stationary in this frame', W / 2, H - 16);
+    }
+}
+
+/* ============================================================
+   VERNIER CALIPER
+   ============================================================ */
+let verState = { pos: 0, dragging: false };
+
+function resetVernier() {
+    verState.pos = 0;
+    updateVernierReading();
+    drawVernier();
+}
+
+function updateVernierReading() {
+    const mm = verState.pos; // total mm
+    const msr = Math.floor(mm / 10) * 10; // main scale reading in mm (nearest lower cm mark)
+    const remainder = mm - msr;
+    const vsr = Math.round(remainder / 0.02); // vernier scale division
+    const vsrClamped = clamp(vsr, 0, 49);
+    const actualRemainder = vsrClamped * 0.02;
+    const total = msr + actualRemainder;
+    document.getElementById('verMSR').textContent = (msr / 10).toFixed(2) + ' cm';
+    document.getElementById('verVSR').textContent = vsrClamped + ' div';
+    document.getElementById('verTotal').textContent = total.toFixed(2) + ' mm';
+}
+
+function drawVernier() {
+    const cv = document.getElementById('cvVernier');
+    const ctx = cv.getContext('2d');
+    const W = cv.width, H = cv.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const scaleOrigin = 60;
+    const pxPerMm = 8; // pixels per mm
+    const mainScaleH = 80; // y position of main scale
+    const vernierH = 120; // y position of vernier scale
+    const jawWidth = 20;
+    const pos = verState.pos;
+
+    // Main body
+    ctx.fillStyle = '#1a2340';
+    ctx.fillRect(scaleOrigin - 30, mainScaleH - 20, 600, 140);
+    ctx.strokeStyle = '#2d3a5c';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(scaleOrigin - 30, mainScaleH - 20, 600, 140);
+
+    // Fixed jaw (left)
+    ctx.fillStyle = '#374151';
+    ctx.fillRect(scaleOrigin - 30, mainScaleH - 40, jawWidth, 180);
+    ctx.strokeStyle = '#4b5563';
+    ctx.strokeRect(scaleOrigin - 30, mainScaleH - 40, jawWidth, 180);
+
+    // Movable jaw
+    const jawX = scaleOrigin + pos * pxPerMm;
+    ctx.fillStyle = '#4b5563';
+    ctx.fillRect(jawX, mainScaleH - 40, jawWidth, 180);
+    ctx.strokeStyle = '#6b7280';
+    ctx.strokeRect(jawX, mainScaleH - 40, jawWidth, 180);
+
+    // Object being measured (between jaws)
+    if (pos > 0.5) {
+        ctx.fillStyle = '#7c3aed';
+        ctx.globalAlpha = 0.6;
+        const objLeft = scaleOrigin - 30 + jawWidth;
+        const objRight = jawX;
+        if (objRight > objLeft) {
+            ctx.fillRect(objLeft, mainScaleH + 10, objRight - objLeft, 40);
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    // Main scale markings (cm = 10mm)
+    ctx.strokeStyle = '#e8e6e3';
+    ctx.fillStyle = '#e8e6e3';
+    ctx.font = '500 10px JetBrains Mono';
+    ctx.textAlign = 'center';
+    for (let cm = 0; cm <= 6; cm++) {
+        const x = scaleOrigin + cm * 10 * pxPerMm;
+        if (x > scaleOrigin + 500) break;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x, mainScaleH);
+        ctx.lineTo(x, mainScaleH + 20);
+        ctx.stroke();
+        ctx.fillText(cm + '', x, mainScaleH + 32);
+        // Half-cm marks
+        if (cm < 6) {
+            const x5 = x + 5 * pxPerMm;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x5, mainScaleH + 5);
+            ctx.lineTo(x5, mainScaleH + 15);
+            ctx.stroke();
+        }
+        // mm marks
+        for (let mm = 1; mm < 10; mm++) {
+            if (mm === 5) continue;
+            const xmm = x + mm * pxPerMm;
+            if (xmm > scaleOrigin + 500) break;
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(xmm, mainScaleH + 8);
+            ctx.lineTo(xmm, mainScaleH + 14);
+            ctx.stroke();
+        }
+    }
+
+    // Vernier scale (50 divisions = 49mm, each div = 0.98mm)
+    ctx.fillStyle = '#f0a030';
+    ctx.strokeStyle = '#f0a030';
+    ctx.font = '500 9px JetBrains Mono';
+    const vPxPerDiv = 49 * pxPerMm / 50; // 0.98mm per div in pixels
+    for (let i = 0; i <= 50; i++) {
+        const x = jawX + i * vPxPerDiv;
+        if (x > scaleOrigin + 500 || x < scaleOrigin - 20) continue;
+        ctx.lineWidth = (i % 5 === 0) ? 1.5 : 0.5;
+        const h = (i % 5 === 0) ? 18 : 10;
+        ctx.beginPath();
+        ctx.moveTo(x, vernierH);
+        ctx.lineTo(x, vernierH + h);
+        ctx.stroke();
+        if (i % 5 === 0) {
+            ctx.fillText(i + '', x, vernierH + 28);
+        }
+    }
+
+    // Label
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '500 11px Space Grotesk';
+    ctx.textAlign = 'left';
+    ctx.fillText('Main Scale', scaleOrigin - 20, mainScaleH - 26);
+    ctx.fillStyle = '#f0a030';
+    ctx.fillText('Vernier Scale', jawX - 10, vernierH - 10);
+
+    // Drag handle indicator
+    ctx.fillStyle = '#4b5563';
+    ctx.beginPath();
+    ctx.roundRect(jawX + 2, vernierH + 40, 16, 30, 3);
+    ctx.fill();
+    ctx.fillStyle = '#9ca3af';
+    for (let i = 0; i < 3; i++) {
+        ctx.fillRect(jawX + 5, vernierH + 46 + i * 8, 10, 2);
+    }
+
+    updateVernierReading();
+}
+
+// Vernier drag handling
+(function() {
+    const cv = document.getElementById('cvVernier');
+    let dragging = false;
+    const scaleOrigin = 60;
+    const pxPerMm = 8;
+
+    function getX(e) {
+        const rect = cv.getBoundingClientRect();
+        const scaleX = cv.width / rect.width;
+        return (e.clientX - rect.left) * scaleX;
+    }
+
+    cv.addEventListener('mousedown', function(e) {
+        dragging = true;
+        verState.dragging = true;
+        updateVernierDrag(e);
     });
-    </script>
+    cv.addEventListener('mousemove', function(e) { if (dragging) updateVernierDrag(e); });
+    cv.addEventListener('mouseup', function() { dragging = false; verState.dragging = false; });
+    cv.addEventListener('mouseleave', function() { dragging = false; verState.dragging = false; });
+
+    // Touch support
+    cv.addEventListener('touchstart', function(e) { e.preventDefault(); dragging = true; updateVernierDrag(e.touches[0]); }, {passive:false});
+    cv.addEventListener('touchmove', function(e) { e.preventDefault(); if (dragging) updateVernierDrag(e.touches[0]); }, {passive:false});
+    cv.addEventListener('touchend', function() { dragging = false; });
+
+    function updateVernierDrag(e) {
+        const x = getX(e);
+        const mm = (x - scaleOrigin) / pxPerMm;
+        verState.pos = clamp(Math.round(mm / 0.02) * 0.02, 0, 60);
+        drawVernier();
+    }
+})();
+
+/* ============================================================
+   SPHEROMETER
+   ============================================================ */
+let sphState = { turns: 0, partialDiv: 0 };
+
+function resetSpherometer() {
+    sphState = { turns: 0, partialDiv: 0 };
+    drawSpherometer();
+}
+
+function drawSpherometer() {
+    const cv = document.getElementById('cvSpherometer');
+    const ctx = cv.getContext('2d');
+    const W = cv.width, H = cv.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const pitch = parseFloat(document.getElementById('sphPitch').value);
+    const legSep = parseFloat(document.getElementById('sphLeg').value);
+    const totalDivisions = 100;
+    const lc = pitch / totalDivisions; // least count in mm
+
+    // Total displacement in mm
+    const totalMm = sphState.turns * pitch + sphState.partialDiv * lc;
+    const h = totalMm; // sagitta
+
+    // Calculate R
+    const l = legSep; // cm
+    const hCm = h / 10; // convert mm to cm
+    let R = '—';
+    if (hCm > 0.0001) {
+        R = ((l * l) / (6 * hCm) + hCm / 2).toFixed(2) + ' cm';
+    }
+
+    document.getElementById('sphMSR').textContent = (sphState.turns * pitch).toFixed(1) + ' mm';
+    document.getElementById('sphCSR').textContent = sphState.partialDiv + ' div';
+    document.getElementById('sphH').textContent = h.toFixed(4) + ' mm';
+    document.getElementById('sphR').textContent = R;
+
+    const cx = W / 2;
+    const cyTop = 80;
+
+    // Top view of spherometer
+    const baseR = 100;
+    // Base circle
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cyTop + 100, baseR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Three legs
+    for (let i = 0; i < 3; i++) {
+        const ang = (i * 120 - 90) * Math.PI / 180;
+        const lx = cx + baseR * Math.cos(ang);
+        const ly = cyTop + 100 + baseR * Math.sin(ang);
+        ctx.beginPath();
+        ctx.arc(lx, ly, 8, 0, Math.PI * 2);
+        ctx.fillStyle = '#f0a030';
+        ctx.fill();
+        ctx.strokeStyle = '#d97706';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = '500 10px Space Grotesk';
+        ctx.textAlign = 'center';
+        ctx.fillText('L' + (i + 1), lx, ly + 20);
+    }
+
+    // Central screw
+    const screwR = 12 + clamp(sphState.turns * 0.5, 0, 8);
+    ctx.beginPath();
+    ctx.arc(cx, cyTop + 100, screwR, 0, Math.PI * 2);
+    ctx.fillStyle = '#2dd4bf';
+    ctx.fill();
+    ctx.strokeStyle = '#14b8a6';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#0a0e17';
+    ctx.font = '700 10px Space Grotesk';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('S', cx, cyTop + 100);
+    ctx.textBaseline = 'alphabetic';
+
+    // Leg separation indicator
+    ctx.setLineDash([4, 3]);
+    ctx.strokeStyle = '#6b7280';
+    ctx.lineWidth = 1;
+    const leg1X = cx + baseR * Math.cos(-90 * Math.PI / 180);
+    const leg1Y = cyTop + 100 + baseR * Math.sin(-90 * Math.PI / 180);
+    ctx.beginPath();
+    ctx.moveTo(cx, cyTop + 100);
+    ctx.lineTo(leg1X, leg1Y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '500 10px JetBrains Mono';
+    ctx.textAlign = 'left';
+    ctx.fillText('l=' + legSep + 'cm', cx + 8, cyTop + 65);
+
+    // Side view below
+    const sideY = 280;
+
+    // Surface (curved)
+    if (hCm > 0.001) {
+        const surfR = parseFloat(R);
+        if (surfR > 0) {
+            const surfRpx = surfR * 30; // scale
+            const arcAng = Math.asin(clamp(baseR * legSep / 3 / surfRpx, -1, 1));
+            ctx.strokeStyle = '#f0a030';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(cx, sideY - surfRpx + h * 3 + 30, surfRpx, Math.PI / 2 - arcAng, Math.PI / 2 + arcAng);
+            ctx.stroke();
+        }
+    } else {
+        ctx.strokeStyle = '#374151';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(cx - 120, sideY + 30);
+        ctx.lineTo(cx + 120, sideY + 30);
+        ctx.stroke();
+    }
+
+    // Spherometer side view
+    ctx.strokeStyle = '#6b7280';
+    ctx.lineWidth = 2;
+    // Base line
+    ctx.beginPath();
+    ctx.moveTo(cx - 100, sideY - 10);
+    ctx.lineTo(cx + 100, sideY - 10);
+    ctx.stroke();
+    // Legs
+    ctx.beginPath(); ctx.moveTo(cx - 80, sideY - 10); ctx.lineTo(cx - 80, sideY + 10); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, sideY - 10); ctx.lineTo(cx, sideY + 10); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx + 80, sideY - 10); ctx.lineTo(cx + 80, sideY + 10); ctx.stroke();
+    // Central screw
+    const screwLen = 40 + sphState.turns * 3 + sphState.partialDiv * 0.3;
+    ctx.strokeStyle = '#2dd4bf';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(cx, sideY - 10);
+    ctx.lineTo(cx, sideY - 10 - screwLen);
+    ctx.stroke();
+    // Screw head
+    ctx.fillStyle = '#2dd4bf';
+    ctx.beginPath();
+    ctx.arc(cx, sideY - 10 - screwLen, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Sagitta label
+    if (h > 0.01) {
+        ctx.setLineDash([3, 3]);
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx + 30, sideY + 30);
+        ctx.lineTo(cx + 30, sideY - 10 - screwLen);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#ef4444';
+        ctx.font = '600 11px JetBrains Mono';
+        ctx.textAlign = 'left';
+        ctx.fillText('h', cx + 35, sideY + 10);
+    }
+
+    // Circular scale (zoomed)
+    const cscx = W - 90;
+    const cscy = cyTop + 100;
+    const csR = 60;
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cscx, cscy, csR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Circular divisions
+    for (let i = 0; i < 100; i++) {
+        const ang = (i / 100) * Math.PI * 2 - Math.PI / 2;
+        const inner = (i % 10 === 0) ? csR - 15 : (i % 5 === 0) ? csR - 10 : csR - 5;
+        ctx.strokeStyle = (i === sphState.partialDiv) ? '#f0a030' : '#4b5563';
+        ctx.lineWidth = (i === sphState.partialDiv) ? 2.5 : (i % 10 === 0) ? 1.5 : 0.5;
+        ctx.beginPath();
+        ctx.moveTo(cscx + inner * Math.cos(ang), cscy + inner * Math.sin(ang));
+        ctx.lineTo(cscx + csR * Math.cos(ang), cscy + csR * Math.sin(ang));
+        ctx.stroke();
+        if (i % 10 === 0) {
+            ctx.fillStyle = '#9ca3af';
+            ctx.font = '500 8px JetBrains Mono';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(i + '', cscx + (csR + 12) * Math.cos(ang), cscy + (csR + 12) * Math.sin(ang));
+        }
+    }
+
+    // Pointer
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cscx, cscy);
+    const ptrAng = (sphState.partialDiv / 100) * Math.PI * 2 - Math.PI / 2;
+    ctx.lineTo(cscx + (csR - 18) * Math.cos(ptrAng), cscy + (csR - 18) * Math.sin(ptrAng));
+    ctx.stroke();
+
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '500 10px Space Grotesk';
+    ctx.textAlign = 'center';
+    ctx.fillText('Circular Scale', cscx, cscy + csR + 28);
+
+    // Instructions
+    ctx.fillStyle = '#4b5563';
+    ctx.font = '500 11px Space Grotesk';
+    ctx.textAlign = 'center';
+    ctx.fillText('Click left side: decrease | Right side: increase', W / 2, H - 16);
+}
+
+// Spherometer click handling
+(function() {
+    const cv = document.getElementById('cvSpherometer');
+    cv.addEventListener('click', function(e) {
+        const rect = cv.getBoundingClientRect();
+        const x = (e.clientX - rect.left) * (cv.width / rect.width);
+        if (x < cv.width / 2) {
+            sphState.partialDiv--;
+            if (sphState.partialDiv < 0) { sphState.partialDiv = 99; sphState.turns = Math.max(0, sphState.turns - 1); }
+        } else {
+            sphState.partialDiv++;
+            if (sphState.partialDiv >= 100) { sphState.partialDiv = 0; sphState.turns++; }
+        }
+        drawSpherometer();
+    });
+})();
+
+/* ============================================================
+   MICROMETER SCREW GAUGE
+   ============================================================ */
+let micState = { div: 0 }; // 0 to 500 (0 to 25mm in steps of 0.01mm)
+
+function resetMicrometer() {
+    micState.div = 0;
+    drawMicrometer();
+}
+
+function drawMicrometer() {
+    const cv = document.getElementById('cvMicrometer');
+    const ctx = cv.getContext('2d');
+    const W = cv.width, H = cv.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const totalMm = micState.div * 0.01;
+    const msr = Math.floor(totalMm * 2) * 0.5; // nearest 0.5mm
+    const remainder = totalMm - msr;
+    const thimbleDiv = Math.round(remainder / 0.01);
+    const thimbleDivClamped = clamp(thimbleDiv, 0, 49);
+    const actualRemainder = thimbleDivClamped * 0.01;
+    const reading = msr + actualRemainder;
+
+    document.getElementById('micMSR').textContent = msr.toFixed(2) + ' mm';
+    document.getElementById('micTR').textContent = thimbleDivClamped + ' div';
+    document.getElementById('micTotal').textContent = reading.toFixed(2) + ' mm';
+    document.getElementById('micZeroErr').textContent = '0.00 mm';
+
+    const frameX = 60;
+    const frameY = 80;
+    const frameW = 500;
+    const frameH = 100;
+    const sleeveW = 300;
+    const thimbleW = 120;
+    const thimbleTravel = totalMm * 8; // pixels per mm for thimble position
+
+    // Frame (C-shape)
+    ctx.strokeStyle = '#6b7280';
+    ctx.lineWidth = 12;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(frameX, frameY + frameH / 2);
+    ctx.lineTo(frameX, frameY + frameH);
+    ctx.lineTo(frameX + frameW, frameY + frameH);
+    ctx.lineTo(frameX + frameW, frameY + frameH / 2);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+
+    // Anvil
+    ctx.fillStyle = '#9ca3af';
+    ctx.fillRect(frameX + 5, frameY + frameH / 2 - 8, 30, 16);
+
+    // Spindle
+    const spindleEndX = frameX + frameW - 10 - thimbleTravel;
+    const spindleStartX = spindleEndX - 180;
+    ctx.fillStyle = '#4b5563';
+    ctx.fillRect(spindleStartX, frameY + frameH / 2 - 5, spindleEndX - spindleStartX, 10);
+
+    // Sleeve (barrel)
+    const sleeveX = spindleStartX - 20;
+    ctx.fillStyle = '#1e293b';
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(sleeveX, frameY + frameH / 2 - 25, sleeveW, 50, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    // Sleeve scale (main scale) - horizontal line with 0.5mm marks
+    const scaleBaseY = frameY + frameH / 2;
+    const sleeveScaleStart = sleeveX + 10;
+    const pxPerHalfMm = 4;
+
+    // Top row (mm marks)
+    ctx.fillStyle = '#e8e6e3';
+    ctx.strokeStyle = '#e8e6e3';
+    ctx.font = '500 10px JetBrains Mono';
+    ctx.textAlign = 'center';
+    for (let mm = 0; mm <= 25; mm++) {
+        const x = sleeveScaleStart + mm * 2 * pxPerHalfMm;
+        if (x > sleeveX + sleeveW - 10) break;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, scaleBaseY - 18);
+        ctx.lineTo(x, scaleBaseY - 5);
+        ctx.stroke();
+        if (mm % 5 === 0) {
+            ctx.fillText(mm + '', x, scaleBaseY - 22);
+        }
+    }
+    // Bottom row (0.5mm marks)
+    for (let mm = 0; mm < 25; mm++) {
+        const x = sleeveScaleStart + mm * 2 * pxPerHalfMm + pxPerHalfMm;
+        if (x > sleeveX + sleeveW - 10) break;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, scaleBaseY + 5);
+        ctx.lineTo(x, scaleBaseY + 15);
+        ctx.stroke();
+    }
+
+    // Thimble
+    const thimbleX = spindleEndX - 10;
+    ctx.fillStyle = '#2d3a5c';
+    ctx.strokeStyle = '#4b5563';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(thimbleX, frameY + frameH / 2 - 30, thimbleW, 60, [0, 8, 8, 0]);
+    ctx.fill();
+    ctx.stroke();
+
+    // Thimble scale (0-49, circular representation shown as linear)
+    const thimbleScaleStart = thimbleX + 10;
+    const thimblePxPerDiv = (thimbleW - 30) / 50;
+    for (let i = 0; i <= 49; i++) {
+        const x = thimbleScaleStart + i * thimblePxPerDiv;
+        const isActive = (i === thimbleDivClamped);
+        ctx.strokeStyle = isActive ? '#f0a030' : '#6b7280';
+        ctx.lineWidth = (i % 5 === 0) ? 1.5 : 0.5;
+        const h = (i % 5 === 0) ? 12 : 6;
+        ctx.beginPath();
+        ctx.moveTo(x, frameY + frameH / 2 + 32);
+        ctx.lineTo(x, frameY + frameH / 2 + 32 + h);
+        ctx.stroke();
+        if (i % 5 === 0) {
+            ctx.fillStyle = isActive ? '#f0a030' : '#6b7280';
+            ctx.font = '500 8px JetBrains Mono';
+            ctx.textAlign = 'center';
+            ctx.fillText(i + '', x, frameY + frameH / 2 + 50);
+        }
+    }
+
+    // Reading line (horizontal datum)
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 2]);
+    ctx.beginPath();
+    ctx.moveTo(sleeveX, scaleBaseY);
+    ctx.lineTo(thimbleX + thimbleW, scaleBaseY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Labels
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '500 11px Space Grotesk';
+    ctx.textAlign = 'left';
+    ctx.fillText('Sleeve (Main Scale)', sleeveX, frameY + frameH / 2 - 35);
+    ctx.fillStyle = '#f0a030';
+    ctx.fillText('Thimble Scale', thimbleX, frameY + frameH / 2 - 40);
+
+    // Object being measured
+    if (totalMm > 0.1) {
+        ctx.fillStyle = '#7c3aed';
+        ctx.globalAlpha = 0.5;
+        const objW = clamp(thimbleTravel, 1, spindleEndX - frameX - 40);
+        ctx.fillRect(frameX + 35, scaleBaseY - 15, objW, 30);
+        ctx.globalAlpha = 1;
+    }
+
+    // Ratchet knob
+    const knobX = thimbleX + thimbleW;
+    ctx.fillStyle = '#374151';
+    ctx.beginPath();
+    ctx.arc(knobX + 15, scaleBaseY, 18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#4b5563';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // Knob grip lines
+    for (let i = 0; i < 6; i++) {
+        const ang = (i / 6) * Math.PI * 2;
+        ctx.strokeStyle = '#6b7280';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(knobX + 15 + 10 * Math.cos(ang), scaleBaseY + 10 * Math.sin(ang));
+        ctx.lineTo(knobX + 15 + 17 * Math.cos(ang), scaleBaseY + 17 * Math.sin(ang));
+        ctx.stroke();
+    }
+
+    // Instructions
+    ctx.fillStyle = '#4b5563';
+    ctx.font = '500 11px Space Grotesk';
+    ctx.textAlign = 'center';
+    ctx.fillText('Click left side: decrease | Right side: increase', W / 2, H - 16);
+}
+
+// Micrometer click handling
+(function() {
+    const cv = document.getElementById('cvMicrometer');
+    cv.addEventListener('click', function(e) {
+        const rect = cv.getBoundingClientRect();
+        const x = (e.clientX - rect.left) * (cv.width / rect.width);
+        if (x < cv.width / 2) {
+            micState.div = Math.max(0, micState.div - 1);
+        } else {
+            micState.div = Math.min(2500, micState.div + 1);
+        }
+        drawMicrometer();
+    });
+})();
+
+/* ============================================================
+   TRAVELLING MICROSCOPE
+   ============================================================
+let tmState = { pos: 0, dragging: false };
+
+function resetMicroscope() {
+    tmState = { pos: 0, dragging: false };
+    drawMicroscope();
+}
+
+function drawMicroscope() {
+    const cv = document.getElementById('cvMicroscope');
+    const ctx = cv.getContext('2d');
+    const W = cv.width, H = cv.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const mag = parseFloat(document.getElementById('tmMag').value);
+    const pos = tmState.pos; // in mm
+
+    // Main scale: 0-100mm, least count 0.01mm
+    const scaleOrigin = 50;
+    const pxPerMm = 5.5;
+    const scaleH = 200;
+
+    // Microscope body
+    const scopeX = scaleOrigin + pos * pxPerMm;
+    // Vertical tube
+    ctx.fillStyle = '#1e293b';
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(scopeX - 15, 20, 30, 150, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    // Eyepiece
+    ctx.fillStyle = '#374151';
+    ctx.beginPath();
+    ctx.roundRect(scopeX - 20, 10, 40, 20, [6, 6, 0, 0]);
+    ctx.fill();
+    ctx.strokeStyle = '#4b5563';
+    ctx.stroke();
+
+    // Objective
+    ctx.fillStyle = '#4b5563';
+    ctx.beginPath();
+    ctx.moveTo(scopeX - 12, 170);
+    ctx.lineTo(scopeX + 12, 170);
+    ctx.lineTo(scopeX + 6, 195);
+    ctx.lineTo(scopeX - 6, 195);
+    ctx.closePath();
+    ctx.fill();
+
+    // Stage/base
+    ctx.fillStyle = '#374151';
+    ctx.fillRect(30, scaleH + 20, W - 60, 15);
+    ctx.strokeStyle = '#4b5563';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(30, scaleH + 20, W - 60, 15);
+
+    // Vertical stand
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(30, 20, 8, scaleH + 15);
+    ctx.strokeStyle = '#374151';
+    ctx.strokeRect(30, 20, 8, scaleH + 15);
+
+    // Main scale on base
+    ctx.strokeStyle = '#e8e6e3';
+    ctx.fillStyle = '#e8e6e3';
+    ctx.font = '500 9px JetBrains Mono';
+    ctx.textAlign = 'center';
+    for (let mm = 0; mm <= 100; mm++) {
+        const x = scaleOrigin + mm * pxPerMm;
+        if (x > W - 40) break;
+        const isCm = mm % 10 === 0;
+        ctx.lineWidth = isCm ? 2 : 0.5;
+        const h = isCm ? 12 : (mm % 5 === 0) ? 8 : 4;
+        ctx.beginPath();
+        ctx.moveTo(x, scaleH + 35);
+        ctx.lineTo(x, scaleH + 35 + h);
+        ctx.stroke();
+        if (isCm) {
+            ctx.fillText((mm / 10) + '', x, scaleH + 55);
+        }
+    }
+
+    // Vernier scale on microscope base
+    const vernierPxPerDiv = 0.99 * pxPerMm; // 99 divisions match 100mm -> 0.01mm LC
+    ctx.strokeStyle = '#f0a030';
+    ctx.fillStyle = '#f0a030';
+    ctx.font = '500 7px JetBrains Mono';
+    for (let i = 0; i <= 99; i++) {
+        const x = scopeX + i * vernierPxPerDiv;
+        if (x < scaleOrigin - 10 || x > W - 40) continue;
+        const isMajor = i % 10 === 0;
+        ctx.lineWidth = isMajor ? 1.5 : 0.5;
+        const h = isMajor ? 10 : 5;
+        ctx.beginPath();
+        ctx.moveTo(x, scaleH + 50);
+        ctx.lineTo(x, scaleH + 50 + h);
+        ctx.stroke();
+    }
+
+    // Reading calculation
+    const msr = Math.floor(pos); // mm
+    const remainder = pos - msr;
+    const vsr = Math.round(remainder / 0.01);
+    const vsrClamped = clamp(vsr, 0, 99);
+    const reading = msr + vsrClamped * 0.01;
+
+    document.getElementById('tmMSR').textContent = msr.toFixed(1) + ' mm';
+    document.getElementById('tmVSR').textContent = vsrClamped + ' div';
+    document.getElementById('tmTotal').textContent = reading.toFixed(2) + ' mm';
+
+    // Microscope view (circular lens view)
+    const viewCx = W / 2 + 100;
+    const viewCy = 100;
+    const viewR = 55;
+
+    // Lens circle
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(viewCx, viewCy, viewR, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Dark background
+    ctx.fillStyle = '#050810';
+    ctx.fillRect(viewCx - viewR, viewCy - viewR, viewR * 2, viewR * 2);
+
+    // Grid lines (magnified)
+    ctx.strokeStyle = 'rgba(45,212,191,0.15)';
+    ctx.lineWidth = 0.5;
+    const gridSpacing = 8 / mag;
+    for (let gx = -viewR; gx < viewR; gx += gridSpacing) {
+        ctx.beginPath();
+        ctx.moveTo(viewCx + gx, viewCy - viewR);
+        ctx.lineTo(viewCx + gx, viewCy + viewR);
+        ctx.stroke();
+    }
+    for (let gy = -viewR; gy < viewR; gy += gridSpacing) {
+        ctx.beginPath();
+        ctx.moveTo(viewCx - viewR, viewCy + gy);
+        ctx.lineTo(viewCx + viewR, viewCy + gy);
+        ctx.stroke();
+    }
+
+    // Sample object (a small mark/wire)
+    const sampleWorldX = pos * 0.5; // sample position in world
+    const sampleScreenX = viewCx + (sampleWorldX - pos * 0.5) * mag * 3;
+    ctx.strokeStyle = '#f0a030';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(sampleScreenX, viewCy - 20);
+    ctx.lineTo(sampleScreenX, viewCy + 20);
+    ctx.stroke();
+
+    // Crosshair
+    ctx.strokeStyle = 'rgba(239,68,68,0.8)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(viewCx - viewR, viewCy);
+    ctx.lineTo(viewCx + viewR, viewCy);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(viewCx, viewCy - viewR);
+    ctx.lineTo(viewCx, viewCy + viewR);
+    ctx.stroke();
+
+    ctx.restore();
+
+    // Lens border
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(viewCx, viewCy, viewR, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = '#4b5563';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(viewCx, viewCy, viewR + 3, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // View label
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '500 10px Space Grotesk';
+    ctx.textAlign = 'center';
+    ctx.fillText('Eyepiece View (' + mag + 'x)', viewCx, viewCy + viewR + 18);
+
+    // Scale label
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '500 10px Space Grotesk';
+    ctx.textAlign = 'left';
+    ctx.fillText('Main Scale (cm)', scaleOrigin, scaleH + 72);
+    ctx.fillStyle = '#f0a030';
+    ctx.fillText('Vernier Scale', scopeX, scaleH + 72);
+
+    // Position indicator line
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(scopeX, 170);
+    ctx.lineTo(scopeX, scaleH + 35);
+    ctx.stroke();
+    ctx.setLineDash([]);
+}
+
+// Travelling microscope drag
+(function() {
+    const cv = document.getElementById('cvMicroscope');
+    let dragging = false;
+    const scaleOrigin = 50;
+    const pxPerMm = 5.5;
+
+    function getX(e) {
+        const rect = cv.getBoundingClientRect();
+        return (e.clientX - rect.left) * (cv.width / rect.width);
+    }
+
+    cv.addEventListener('mousedown', function(e) { dragging = true; updateTMDrag(e); });
+    cv.addEventListener('mousemove', function(e) { if (dragging) updateTMDrag(e); });
+    cv.addEventListener('mouseup', function() { dragging = false; });
+    cv.addEventListener('mouseleave', function() { dragging = false; });
+
+    cv.addEventListener('touchstart', function(e) { e.preventDefault(); dragging = true; updateTMDrag(e.touches[0]); }, {passive:false});
+    cv.addEventListener('touchmove', function(e) { e.preventDefault(); if (dragging) updateTMDrag(e.touches[0]); }, {passive:false});
+    cv.addEventListener('touchend', function() { dragging = false; });
+
+    function updateTMDrag(e) {
+        const x = getX(e);
+        const mm = (x - scaleOrigin) / pxPerMm;
+        tmState.pos = clamp(Math.round(mm / 0.01) * 0.01, 0, 100);
+        drawMicroscope();
+    }
+})();
+*/
+
+/* ============================================================
+   TRAVELLING MICROSCOPE (properly placed)
+   ============================================================ */
+let tmState = { pos: 0, dragging: false };
+
+function resetMicroscope() {
+    tmState = { pos: 0, dragging: false };
+    drawMicroscope();
+}
+
+function drawMicroscope() {
+    const cv = document.getElementById('cvMicroscope');
+    const ctx = cv.getContext('2d');
+    const W = cv.width, H = cv.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const mag = parseFloat(document.getElementById('tmMag').value);
+    const pos = tmState.pos;
+    const scaleOrigin = 50;
+    const pxPerMm = 5.5;
+    const scaleH = 200;
+    const scopeX = scaleOrigin + pos * pxPerMm;
+
+    // Vertical stand
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(30, 20, 8, scaleH + 15);
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(30, 20, 8, scaleH + 15);
+
+    // Microscope body
+    ctx.fillStyle = '#1e293b';
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(scopeX - 15, 20, 30, 150, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    // Eyepiece
+    ctx.fillStyle = '#374151';
+    ctx.beginPath();
+    ctx.roundRect(scopeX - 20, 10, 40, 20, [6, 6, 0, 0]);
+    ctx.fill();
+    ctx.strokeStyle = '#4b5563';
+    ctx.stroke();
+
+    // Objective
+    ctx.fillStyle = '#4b5563';
+    ctx.beginPath();
+    ctx.moveTo(scopeX - 12, 170);
+    ctx.lineTo(scopeX + 12, 170);
+    ctx.lineTo(scopeX + 6, 195);
+    ctx.lineTo(scopeX - 6, 195);
+    ctx.closePath();
+    ctx.fill();
+
+    // Stage
+    ctx.fillStyle = '#374151';
+    ctx.fillRect(30, scaleH + 20, W - 60, 15);
+    ctx.strokeStyle = '#4b5563';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(30, scaleH + 20, W - 60, 15);
+
+    // Main scale
+    ctx.strokeStyle = '#e8e6e3';
+    ctx.fillStyle = '#e8e6e3';
+    ctx.font = '500 9px JetBrains Mono';
+    ctx.textAlign = 'center';
+    for (let mm = 0; mm <= 100; mm++) {
+        const x = scaleOrigin + mm * pxPerMm;
+        if (x > W - 40) break;
+        const isCm = mm % 10 === 0;
+        ctx.lineWidth = isCm ? 2 : 0.5;
+        const h = isCm ? 12 : (mm % 5 === 0) ? 8 : 4;
+        ctx.beginPath();
+        ctx.moveTo(x, scaleH + 35);
+        ctx.lineTo(x, scaleH + 35 + h);
+        ctx.stroke();
+        if (isCm) ctx.fillText((mm / 10) + '', x, scaleH + 55);
+    }
+
+    // Vernier scale
+    const vernierPxPerDiv = 0.99 * pxPerMm;
+    ctx.strokeStyle = '#f0a030';
+    ctx.fillStyle = '#f0a030';
+    ctx.font = '500 7px JetBrains Mono';
+    for (let i = 0; i <= 99; i++) {
+        const x = scopeX + i * vernierPxPerDiv;
+        if (x < scaleOrigin - 10 || x > W - 40) continue;
+        ctx.lineWidth = (i % 10 === 0) ? 1.5 : 0.5;
+        const h = (i % 10 === 0) ? 10 : 5;
+        ctx.beginPath();
+        ctx.moveTo(x, scaleH + 50);
+        ctx.lineTo(x, scaleH + 50 + h);
+        ctx.stroke();
+    }
+
+    // Reading
+    const msr = Math.floor(pos);
+    const remainder = pos - msr;
+    const vsr = clamp(Math.round(remainder / 0.01), 0, 99);
+    const reading = msr + vsr * 0.01;
+    document.getElementById('tmMSR').textContent = msr.toFixed(1) + ' mm';
+    document.getElementById('tmVSR').textContent = vsr + ' div';
+    document.getElementById('tmTotal').textContent = reading.toFixed(2) + ' mm';
+
+    // Eyepiece view
+    const viewCx = W / 2 + 100;
+    const viewCy = 100;
+    const viewR = 55;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(viewCx, viewCy, viewR, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.fillStyle = '#050810';
+    ctx.fillRect(viewCx - viewR, viewCy - viewR, viewR * 2, viewR * 2);
+    // Grid
+    ctx.strokeStyle = 'rgba(45,212,191,0.15)';
+    ctx.lineWidth = 0.5;
+    const gs = Math.max(4, 8 / mag);
+    for (let gx = -viewR; gx < viewR; gx += gs) {
+        ctx.beginPath(); ctx.moveTo(viewCx + gx, viewCy - viewR); ctx.lineTo(viewCx + gx, viewCy + viewR); ctx.stroke();
+    }
+    for (let gy = -viewR; gy < viewR; gy += gs) {
+        ctx.beginPath(); ctx.moveTo(viewCx - viewR, viewCy + gy); ctx.lineTo(viewCx + viewR, viewCy + gy); ctx.stroke();
+    }
+    // Sample wire
+    ctx.strokeStyle = '#f0a030';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(viewCx, viewCy - 20);
+    ctx.lineTo(viewCx, viewCy + 20);
+    ctx.stroke();
+    // Crosshair
+    ctx.strokeStyle = 'rgba(239,68,68,0.8)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(viewCx - viewR, viewCy); ctx.lineTo(viewCx + viewR, viewCy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(viewCx, viewCy - viewR); ctx.lineTo(viewCx, viewCy + viewR); ctx.stroke();
+    ctx.restore();
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(viewCx, viewCy, viewR, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = '#4b5563';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(viewCx, viewCy, viewR + 3, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '500 10px Space Grotesk';
+    ctx.textAlign = 'center';
+    ctx.fillText('Eyepiece View (' + mag + 'x)', viewCx, viewCy + viewR + 18);
+
+    // Position indicator
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(scopeX, 170); ctx.lineTo(scopeX, scaleH + 35); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Labels
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '500 10px Space Grotesk';
+    ctx.textAlign = 'left';
+    ctx.fillText('Main Scale (cm)', scaleOrigin, scaleH + 72);
+    ctx.fillStyle = '#f0a030';
+    ctx.fillText('Vernier', scopeX, scaleH + 72);
+}
+
+// Travelling microscope drag
+(function() {
+    const cv = document.getElementById('cvMicroscope');
+    let dragging = false;
+    const scaleOrigin = 50;
+    const pxPerMm = 5.5;
+
+    function getX(e) {
+        const rect = cv.getBoundingClientRect();
+        return (e.clientX - rect.left) * (cv.width / rect.width);
+    }
+    cv.addEventListener('mousedown', function(e) { dragging = true; updateDrag(e); });
+    cv.addEventListener('mousemove', function(e) { if (dragging) updateDrag(e); });
+    cv.addEventListener('mouseup', function() { dragging = false; });
+    cv.addEventListener('mouseleave', function() { dragging = false; });
+    cv.addEventListener('touchstart', function(e) { e.preventDefault(); dragging = true; updateDrag(e.touches[0]); }, {passive:false});
+    cv.addEventListener('touchmove', function(e) { e.preventDefault(); if (dragging) updateDrag(e.touches[0]); }, {passive:false});
+    cv.addEventListener('touchend', function() { dragging = false; });
+
+    function updateDrag(e) {
+        const x = getX(e);
+        const mm = (x - scaleOrigin) / pxPerMm;
+        tmState.pos = clamp(Math.round(mm / 0.01) * 0.01, 0, 100);
+        drawMicroscope();
+    }
+})();
+
+/* ============================================================
+   INITIALIZATION
+   ============================================================ */
+window.addEventListener('load', function() {
+    initSim('reflection');
+});
+
+// Handle canvas resizing for responsiveness
+function resizeCanvases() {
+    document.querySelectorAll('canvas').forEach(function(cv) {
+        const parent = cv.parentElement;
+        if (parent && cv.width > parent.clientWidth) {
+            cv.style.width = '100%';
+            cv.style.height = 'auto';
+        }
+    });
+}
+window.addEventListener('resize', resizeCanvases);
+setTimeout(resizeCanvases, 100);
+</script>
 </body>
 </html>
